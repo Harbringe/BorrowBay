@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material3.*
@@ -32,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -43,13 +43,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.borrowbay.features.auth.viewmodel.AuthViewModel
 import com.example.borrowbay.features.createlisting.viewmodel.ListingUiState
-import com.example.borrowbay.features.createlisting.viewmodel.ProductViewModel
 import com.example.borrowbay.ui.theme.*
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -63,12 +63,17 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,7 +83,7 @@ enum class ListingStep {
     PHOTOS, DETAILS, PRICE, LOCATION
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddProductScreen(
     viewModel: ProductViewModel = viewModel(),
@@ -89,7 +94,7 @@ fun AddProductScreen(
     val uiState by viewModel.listingState
     var currentStep by remember { mutableStateOf(ListingStep.PHOTOS) }
     var showSuccessDialog by remember { mutableStateOf(false) }
-    
+
     // Authorization Check
     var isAuthorized by remember { mutableStateOf<Boolean?>(null) }
     val auth = FirebaseAuth.getInstance()
@@ -138,8 +143,13 @@ fun AddProductScreen(
         return
     }
 
+    // Initialize OSM Configuration
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().userAgentValue = context.packageName
+    }
+
     var name by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
+    var selectedCategories by remember { mutableStateOf(setOf<String>()) }
     var desc by remember { mutableStateOf("") }
     var rent by remember { mutableStateOf("") }
     var security by remember { mutableStateOf("") }
@@ -155,14 +165,15 @@ fun AddProductScreen(
         LocationServices.getFusedLocationProviderClient(context) 
     }
 
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(LatLng(20.5937, 78.9629), 5f)
-    }
-    val markerState = rememberMarkerState(position = LatLng(0.0, 0.0))
+    val MAX_RENT = 100000.0
+    val MAX_SECURITY = 1000000.0
 
     LaunchedEffect(uiState) {
         if (uiState is ListingUiState.Success) {
+            Toast.makeText(context, "Product listed successfully!", Toast.LENGTH_LONG).show()
             showSuccessDialog = true
+        } else if (uiState is ListingUiState.Error) {
+            Toast.makeText(context, (uiState as ListingUiState.Error).msg, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -182,8 +193,6 @@ fun AddProductScreen(
                     address = fetchedAddress
                     latitude = lat
                     longitude = lng
-                    markerState.position = LatLng(lat, lng)
-                    cameraPositionState.position = CameraPosition.fromLatLngZoom(LatLng(lat, lng), 15f)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -200,6 +209,7 @@ fun AddProductScreen(
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
             try {
+                @SuppressLint("MissingPermission")
                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                     .addOnSuccessListener { location: Location? ->
                         location?.let { getAddressFromLocation(it.latitude, it.longitude) }
@@ -212,35 +222,52 @@ fun AddProductScreen(
         return try {
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-            storageDir?.mkdirs()
+            if (storageDir == null) return null
+            storageDir.mkdirs()
             val file = File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
             FileProvider.getUriForFile(context, "com.example.borrowbay.provider", file)
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && tempPhotoUriString != null) {
             val uri = Uri.parse(tempPhotoUriString)
             selectedImages = selectedImages + uri
-            try {
-                context.contentResolver.openInputStream(uri)?.use { imageBytesList = imageBytesList + it.readBytes() }
-            } catch (e: Exception) { e.printStackTrace() }
+            scope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.use {
+                        val bytes = it.readBytes()
+                        withContext(Dispatchers.Main) {
+                            imageBytesList = imageBytesList + bytes
+                        }
+                    }
+                } catch (e: Exception) { e.printStackTrace() }
+            }
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         val newUris = uris.filter { it !in selectedImages }
         selectedImages = selectedImages + newUris
-        val newBytes = newUris.mapNotNull { uri ->
-            try { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Exception) { null }
+        scope.launch(Dispatchers.IO) {
+            val newBytes = newUris.mapNotNull { uri ->
+                try { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } } catch (e: Exception) { null }
+            }
+            withContext(Dispatchers.Main) {
+                imageBytesList = imageBytesList + newBytes
+            }
         }
-        imageBytesList = imageBytesList + newBytes
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
             val uri = createTempPictureUri()
-            if (uri != null) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) }
+            if (uri != null) {
+                tempPhotoUriString = uri.toString()
+                cameraLauncher.launch(uri)
+            }
         }
     }
 
@@ -258,7 +285,7 @@ fun AddProductScreen(
                 Button(onClick = {
                     showSuccessDialog = false
                     viewModel.resetListingState()
-                    onBack()
+                    onPublished()
                 }) { Text("OK", color = OnPrimary) }
             },
             title = { Text("Published!", color = Color.Black, fontWeight = FontWeight.Bold) },
@@ -304,13 +331,17 @@ fun AddProductScreen(
         bottomBar = {
             Surface(shadowElevation = 4.dp, color = SurfaceLight) {
                 Box(modifier = Modifier.padding(16.dp).navigationBarsPadding()) {
+                    val rentVal = rent.toDoubleOrNull() ?: 0.0
+                    val securityVal = security.toDoubleOrNull() ?: 0.0
+                    val isPriceValid = rentVal <= MAX_RENT && securityVal <= MAX_SECURITY
+
                     Button(
                         onClick = {
                             when (currentStep) {
                                 ListingStep.PHOTOS -> currentStep = ListingStep.DETAILS
                                 ListingStep.DETAILS -> currentStep = ListingStep.PRICE
                                 ListingStep.PRICE -> currentStep = ListingStep.LOCATION
-                                ListingStep.LOCATION -> viewModel.listProduct(name, category, desc, rent.toDoubleOrNull() ?: 0.0, security.toDoubleOrNull() ?: 0.0, address, latitude, longitude, imageBytesList)
+                                ListingStep.LOCATION -> viewModel.listProduct(name, selectedCategories.joinToString(", "), desc, rentVal, securityVal, address, latitude, longitude, imageBytesList)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -318,8 +349,8 @@ fun AddProductScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
                         enabled = when (currentStep) {
                             ListingStep.PHOTOS -> selectedImages.isNotEmpty()
-                            ListingStep.DETAILS -> name.isNotEmpty() && category.isNotEmpty()
-                            ListingStep.PRICE -> rent.isNotEmpty()
+                            ListingStep.DETAILS -> name.isNotEmpty() && selectedCategories.isNotEmpty() && desc.isNotEmpty()
+                            ListingStep.PRICE -> rent.isNotEmpty() && isPriceValid
                             ListingStep.LOCATION -> address.isNotEmpty()
                         } && uiState !is ListingUiState.Loading
                     ) {
@@ -351,18 +382,31 @@ fun AddProductScreen(
                         selectedImages = selectedImages.filterIndexed { i, _ -> i != idx }
                         imageBytesList = imageBytesList.filterIndexed { i, _ -> i != idx }
                     })
-                    ListingStep.DETAILS -> DetailsStep(name, { name = it }, category, { category = it }, desc, { desc = it })
-                    ListingStep.PRICE -> PriceStep(rent, { rent = it }, security, { security = it })
+                    ListingStep.DETAILS -> DetailsStep(
+                        name, { name = it },
+                        selectedCategories, {
+                            if (selectedCategories.contains(it)) selectedCategories -= it
+                            else selectedCategories += it
+                        },
+                        desc, { desc = it }
+                    )
+                    ListingStep.PRICE -> PriceStep(rent, { rent = it }, security, { security = it }, MAX_RENT, MAX_SECURITY)
                     ListingStep.LOCATION -> LocationStep(
                         address = address, 
-                        cameraPositionState = cameraPositionState,
-                        markerState = markerState,
+                        latitude = latitude,
+                        longitude = longitude,
                         onAddressChange = { address = it }, 
-                        onMapClick = { latLng -> getAddressFromLocation(latLng.latitude, latLng.longitude) },
+                        onLocationSelected = { addr, lat, lng ->
+                            address = addr
+                            latitude = lat
+                            longitude = lng
+                        },
+                        onMapClick = { lat, lng -> getAddressFromLocation(lat, lng) },
                         onUseCurrent = {
                             val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                             val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
                             if (fineGranted || coarseGranted) {
+                                @SuppressLint("MissingPermission")
                                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                                     .addOnSuccessListener { loc -> loc?.let { getAddressFromLocation(it.latitude, it.longitude) } }
                             } else {
@@ -384,10 +428,7 @@ fun AddProductScreen(
                 if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
                     val uri = createTempPictureUri()
                     if (uri != null) { tempPhotoUriString = uri.toString(); cameraLauncher.launch(uri) }
-                } else {
-                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                }
-                showImageSourceDialog = false
+                } else { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
             }
         )
     }
@@ -396,125 +437,264 @@ fun AddProductScreen(
 @Composable
 fun PhotoStep(images: List<Uri>, onAdd: () -> Unit, onRemove: (Int) -> Unit) {
     Column {
-        Text("Add photos of your item", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Text("Good photos help your item rent faster.", color = Color.Gray, fontSize = 16.sp)
-        Spacer(Modifier.height(24.dp))
-        
-        if (images.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MutedLight)
-                    .clickable { onAdd() }
-                    .drawWithContent {
-                        drawContent()
-                        drawRoundRect(
-                            color = Color.Gray, // Add the color here (e.g., Color.Gray or Ocean)
-                            cornerRadius = CornerRadius(12.dp.toPx()),
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                            )
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.AddAPhoto, null, modifier = Modifier.size(48.dp), tint = Ocean)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Tap to add photos", color = Ocean, fontWeight = FontWeight.Bold)
-                }
-            }
-        } else {
-            LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(images) { idx, uri ->
-                    Box(modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp))) {
-                        AsyncImage(model = uri, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        IconButton(onClick = { onRemove(idx) }, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(28.dp).background(Color.Black.copy(0.5f), CircleShape)) {
-                            Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-                item {
-                    Box(modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(MutedLight).clickable { onAdd() }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Add, null, tint = Ocean, modifier = Modifier.size(32.dp))
+        Text("Add photos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
+        Text("Add up to 8 photos. The first photo will be your cover.", color = MutedFgLight, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(32.dp))
+        LazyVerticalGrid(columns = GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Box(
+                    modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(SurfaceLight)
+                        .clickable { onAdd() }
+                        .drawDashedBorder(MutedFgLight, 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.PhotoCamera, null, tint = MutedFgLight, modifier = Modifier.size(32.dp))
+                        Spacer(Modifier.height(4.dp))
+                        Text("Add Photo", color = MutedFgLight, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
+            itemsIndexed(images) { index, uri ->
+                Box(modifier = Modifier.aspectRatio(1f)) {
+                    AsyncImage(model = uri, contentDescription = null, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)), contentScale = ContentScale.Crop)
+                    IconButton(onClick = { onRemove(index) }, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)) {
+                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            items(maxOf(0, 5 - images.size)) { Box(modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(MutedLight)) }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DetailsStep(name: String, onName: (String) -> Unit, category: String, onCategory: (String) -> Unit, desc: String, onDesc: (String) -> Unit) {
-    Column {
-        Text("What are you listing?", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Spacer(Modifier.height(24.dp))
-        
-        Text("Item Name", fontWeight = FontWeight.Bold, color = Color.Black)
-        OutlinedTextField(value = name, onValueChange = onName, modifier = Modifier.fillMaxWidth(), placeholder = { Text("e.g. Canon EOS R5") }, shape = RoundedCornerShape(12.dp))
-        
-        Spacer(Modifier.height(16.dp))
-        
-        Text("Category", fontWeight = FontWeight.Bold, color = Color.Black)
-        // Basic category selection
-        val categories = listOf("Electronics", "Vehicles", "Sports", "Appliances", "Tools")
-        Row(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            categories.forEach { cat ->
-                FilterChip(selected = category == cat, onClick = { onCategory(cat) }, label = { Text(cat) }, shape = RoundedCornerShape(20.dp))
-            }
+fun DetailsStep(name: String, onNameChange: (String) -> Unit, selectedCategories: Set<String>, onCatToggle: (String) -> Unit, desc: String, onDescChange: (String) -> Unit) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        Text("Item details", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
+        Spacer(Modifier.height(32.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Title", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
+            if (name.isEmpty()) Text(" *", color = Color.Red, fontSize = 15.sp)
         }
-        
-        Spacer(Modifier.height(16.dp))
-        
-        Text("Description", fontWeight = FontWeight.Bold, color = Color.Black)
-        OutlinedTextField(value = desc, onValueChange = onDesc, modifier = Modifier.fillMaxWidth().height(150.dp), placeholder = { Text("Describe the item condition and features...") }, shape = RoundedCornerShape(12.dp))
-    }
-}
-
-@Composable
-fun PriceStep(rent: String, onRent: (String) -> Unit, security: String, onSecurity: (String) -> Unit) {
-    Column {
-        Text("Set your pricing", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Text("Users pay rent daily.", color = Color.Gray)
-        Spacer(Modifier.height(24.dp))
-        
-        Text("Rent per Day (₹)", fontWeight = FontWeight.Bold, color = Color.Black)
-        OutlinedTextField(value = rent, onValueChange = onRent, modifier = Modifier.fillMaxWidth(), placeholder = { Text("0.00") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-        
-        Spacer(Modifier.height(24.dp))
-        
-        Text("Security Deposit (₹)", fontWeight = FontWeight.Bold, color = Color.Black)
-        OutlinedTextField(value = security, onValueChange = onSecurity, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Optional") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(12.dp))
-    }
-}
-
-@Composable
-fun LocationStep(address: String, cameraPositionState: CameraPositionState, markerState: MarkerState, onAddressChange: (String) -> Unit, onMapClick: (LatLng) -> Unit, onUseCurrent: () -> Unit) {
-    Column {
-        Text("Where is it located?", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Spacer(Modifier.height(16.dp))
-        
         OutlinedTextField(
-            value = address, 
-            onValueChange = onAddressChange, 
-            modifier = Modifier.fillMaxWidth(), 
-            placeholder = { Text("Street address, City, Area") }, 
-            trailingIcon = { IconButton(onClick = onUseCurrent) { Icon(Icons.Outlined.MyLocation, null, tint = Ocean) } },
-            shape = RoundedCornerShape(12.dp)
+            value = name, onValueChange = onNameChange, placeholder = { Text("Enter item title", color = MutedFgLight) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp), shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ocean, unfocusedBorderColor = BorderLight, unfocusedContainerColor = SurfaceLight, focusedContainerColor = SurfaceLight, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black)
         )
-        
-        Spacer(Modifier.height(16.dp))
-        
-        Box(modifier = Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, MutedLight, RoundedCornerShape(16.dp))) {
-            GoogleMap(modifier = Modifier.fillMaxSize(), cameraPositionState = cameraPositionState, onMapClick = onMapClick, uiSettings = MapUiSettings(zoomControlsEnabled = false)) {
-                if (markerState.position.latitude != 0.0) Marker(state = markerState)
+
+        Spacer(Modifier.height(32.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Pick Relevant Categories", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
+            if (selectedCategories.isEmpty()) Text(" *", color = Color.Red, fontSize = 15.sp)
+        }
+        Text("Select all that apply to your item", color = MutedFgLight, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+        Spacer(Modifier.height(12.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val categories = listOf("Electronics" to Icons.Default.CameraAlt, "Sports" to Icons.AutoMirrored.Filled.DirectionsBike, "Tools" to Icons.Default.Build, "Outdoors" to Icons.Default.Terrain, "Vehicles" to Icons.Default.DirectionsCar, "Music" to Icons.Default.MusicNote, "Gaming" to Icons.Default.Gamepad)
+            categories.forEach { (cat, icon) ->
+                val selected = selectedCategories.contains(cat)
+                Surface(
+                    onClick = { onCatToggle(cat) },
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, if (selected) Ocean else BorderLight),
+                    color = if (selected) Ocean.copy(alpha = 0.1f) else SurfaceLight
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(icon, null, modifier = Modifier.size(18.dp), tint = if (selected) Ocean else MutedFgLight)
+                        Spacer(Modifier.width(8.dp))
+                        Text(cat, color = if (selected) Ocean else Color.Black, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, fontSize = 14.sp)
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text("Tap on the map to set location exactly", fontSize = 12.sp, color = Color.Gray)
+
+        Spacer(Modifier.height(32.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Description", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
+            if (desc.isEmpty()) Text(" *", color = Color.Red, fontSize = 15.sp)
+        }
+        OutlinedTextField(
+            value = desc, onValueChange = onDescChange, placeholder = { Text("Enter item description", color = MutedFgLight) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(120.dp), shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ocean, unfocusedBorderColor = BorderLight, unfocusedContainerColor = SurfaceLight, focusedContainerColor = SurfaceLight, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black)
+        )
+    }
+}
+
+@Composable
+fun PriceStep(rent: String, onRentChange: (String) -> Unit, security: String, onSecurityChange: (String) -> Unit, maxRent: Double, maxSecurity: Double) {
+    Column {
+        Text("Set your price", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
+        Spacer(Modifier.height(32.dp))
+        
+        Text("Price per day (₹)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
+        OutlinedTextField(
+            value = rent,
+            onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) onRentChange(it) },
+            placeholder = { Text("Enter amount", color = MutedFgLight) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ocean, unfocusedBorderColor = BorderLight, unfocusedContainerColor = SurfaceLight, focusedContainerColor = SurfaceLight, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
+            isError = (rent.toDoubleOrNull() ?: 0.0) > maxRent
+        )
+        if ((rent.toDoubleOrNull() ?: 0.0) > maxRent) {
+            Text("Maximum rent allowed is ₹1,00,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+        }
+
+        Spacer(Modifier.height(32.dp))
+        Text("Security deposit (₹)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
+        OutlinedTextField(
+            value = security,
+            onValueChange = { if (it.isEmpty() || it.all { c -> c.isDigit() }) onSecurityChange(it) },
+            placeholder = { Text("Enter amount", color = MutedFgLight) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ocean, unfocusedBorderColor = BorderLight, unfocusedContainerColor = SurfaceLight, focusedContainerColor = SurfaceLight, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
+            isError = (security.toDoubleOrNull() ?: 0.0) > maxSecurity
+        )
+        if ((security.toDoubleOrNull() ?: 0.0) > maxSecurity) {
+            Text("Maximum security allowed is ₹10,00,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+        }
+    }
+}
+
+@Composable
+fun LocationStep(
+    address: String,
+    latitude: Double,
+    longitude: Double,
+    onAddressChange: (String) -> Unit,
+    onLocationSelected: (String, Double, Double) -> Unit,
+    onMapClick: (Double, Double) -> Unit,
+    onUseCurrent: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var suggestions by remember { mutableStateOf<List<android.location.Address>>(emptyList()) }
+    var showSuggestions by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+
+    fun searchAddress(query: String) {
+        searchJob?.cancel()
+        searchJob = scope.launch(Dispatchers.IO) {
+            delay(500) // Debounce
+            try {
+                val geocoder = Geocoder(context, Locale.getDefault())
+                val results = geocoder.getFromLocationName(query, 5)
+                withContext(Dispatchers.Main) {
+                    suggestions = results ?: emptyList()
+                    showSuggestions = suggestions.isNotEmpty()
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    Column {
+        Text("Set pickup location", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
+        Text("Choose where renters can pick up the item.", color = MutedFgLight, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(32.dp))
+
+        Box(modifier = Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(20.dp)).background(MutedLight).border(1.dp, BorderLight, RoundedCornerShape(20.dp))) {
+            AndroidView(
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        controller.setZoom(15.0)
+
+                        // Handle map tap for location selection
+                        val mOverlay = object : org.osmdroid.views.overlay.Overlay() {
+                            override fun onSingleTapConfirmed(e: android.view.MotionEvent, mapView: MapView): Boolean {
+                                val projection = mapView.projection
+                                val geoPoint = projection.fromPixels(e.x.toInt(), e.y.toInt()) as GeoPoint
+                                onMapClick(geoPoint.latitude, geoPoint.longitude)
+                                return true
+                            }
+                        }
+                        overlays.add(mOverlay)
+                    }
+                },
+                update = { view ->
+                    if (latitude != 0.0) {
+                        val geoPoint = GeoPoint(latitude, longitude)
+                        // Only center if it's far from current center to avoid jitter while typing address string
+                        val currentCenter = view.mapCenter
+                        val dist = (currentCenter.latitude - latitude) * (currentCenter.latitude - latitude) +
+                                   (currentCenter.longitude - longitude) * (currentCenter.longitude - longitude)
+                        if (dist > 0.00001) {
+                            view.controller.animateTo(geoPoint)
+                        }
+
+                        view.overlays.removeAll { it is Marker }
+                        val marker = Marker(view).apply {
+                            position = geoPoint
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            title = "Pickup Location"
+                        }
+                        view.overlays.add(marker)
+                    }
+                    view.invalidate()
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Surface(
+                color = Color.Black.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+            ) {
+                Text("Tap on map to select", color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        
+        Box {
+            OutlinedTextField(
+                value = address,
+                onValueChange = {
+                    onAddressChange(it)
+                    if (it.length > 3) searchAddress(it) else {
+                        showSuggestions = false
+                        searchJob?.cancel()
+                    }
+                },
+                placeholder = { Text("Enter address manually or use map", color = MutedFgLight) },
+                leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = Ocean, modifier = Modifier.size(20.dp)) },
+                trailingIcon = {
+                    IconButton(onClick = onUseCurrent) {
+                        Icon(Icons.Outlined.MyLocation, "Use current location", tint = Ocean, modifier = Modifier.size(20.dp))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ocean, unfocusedBorderColor = BorderLight, unfocusedContainerColor = SurfaceLight, focusedContainerColor = SurfaceLight, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black)
+            )
+
+            if (showSuggestions) {
+                DropdownMenu(
+                    expanded = showSuggestions,
+                    onDismissRequest = { showSuggestions = false },
+                    modifier = Modifier.fillMaxWidth(0.9f).background(SurfaceLight),
+                    properties = PopupProperties(focusable = false)
+                ) {
+                    suggestions.forEach { addr ->
+                        DropdownMenuItem(
+                            text = { Text(addr.getAddressLine(0), color = Color.Black, fontSize = 14.sp) },
+                            onClick = {
+                                showSuggestions = false
+                                searchJob?.cancel()
+                                onLocationSelected(addr.getAddressLine(0), addr.latitude, addr.longitude)
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -522,15 +702,18 @@ fun LocationStep(address: String, cameraPositionState: CameraPositionState, mark
 fun ImageSourceDialog(onDismiss: () -> Unit, onGallery: () -> Unit, onCamera: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = {},
-        dismissButton = {},
-        title = { Text("Select Image Source", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                ListItem(headlineContent = { Text("Gallery") }, leadingContent = { Icon(Icons.Default.PhotoLibrary, null) }, modifier = Modifier.clickable { onGallery(); onDismiss() })
-                ListItem(headlineContent = { Text("Camera") }, leadingContent = { Icon(Icons.Default.PhotoCamera, null) }, modifier = Modifier.clickable { onCamera(); onDismiss() })
-            }
-        },
-        containerColor = SurfaceLight
+        containerColor = SurfaceLight,
+        title = { Text("Add Photo", fontWeight = FontWeight.Bold, color = Color.Black) },
+        text = { Text("Choose a source for your product photo", color = Color.Black) },
+        confirmButton = { TextButton(onClick = { onDismiss(); onGallery() }) { Text("Gallery", color = Ocean) } },
+        dismissButton = { TextButton(onClick = { onDismiss(); onCamera() }) { Text("Camera", color = Ocean) } }
     )
 }
+
+fun Modifier.drawDashedBorder(color: Color, cornerRadius: androidx.compose.ui.unit.Dp) = this.then(
+    Modifier.drawWithContent {
+        drawContent()
+        val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f))
+        drawRoundRect(color = color, style = stroke, cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius.toPx()))
+    }
+)
