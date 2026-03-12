@@ -25,7 +25,7 @@ class RentalRepository {
             emit(emptyList())
         }
     }
-
+//TODO: Change to Global
     fun getTrendingRentals(): Flow<List<RentalItem>> = flow {
         try {
             val response = supabase.postgrest["items"].select().decodeList<RentalItem>()
