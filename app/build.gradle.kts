@@ -7,9 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.borrowbay"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.borrowbay"
@@ -70,6 +68,10 @@ dependencies {
 
     // Ktor
     implementation(libs.ktor.client.okhttp)
+
+    // Location & Maps
+    implementation(libs.play.services.location)
+    implementation(libs.maps.compose)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

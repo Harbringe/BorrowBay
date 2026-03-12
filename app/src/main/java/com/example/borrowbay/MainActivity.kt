@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.borrowbay.core.supabase
+import com.example.borrowbay.features.home.ui.HomeScreen
 import com.example.borrowbay.navigation.NavGraph
 import com.example.borrowbay.ui.theme.BorrowBayTheme
 import io.github.jan.supabase.auth.handleDeeplinks
@@ -20,7 +21,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BorrowBayTheme {
-                NavGraph()
+//                NavGraph()
+                HomeScreen()
             }
         }
     }
