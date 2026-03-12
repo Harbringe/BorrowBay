@@ -20,7 +20,9 @@ data class RentalItem(
 data class Owner(
     val id: String,
     val name: String,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    val phone: String,
+    val email: String
 )
 
 @Serializable
