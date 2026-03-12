@@ -25,19 +25,27 @@ import com.example.borrowbay.features.home.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
-    onAddClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    onAddClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(
-                onHomeClick = {},
-                onAddClick = onAddClick,
-                onProfileClick = onProfileClick
-            )
-        }
+            BottomNavigationBar(onProfileClick = onProfileClick)
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+                modifier = Modifier.offset(y = 50.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add")
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             if (uiState.isLoading) {

@@ -1,88 +1,90 @@
 package com.example.borrowbay.data.repository
 
+import com.google.firebase.firestore.FirebaseFirestore
 import com.example.borrowbay.data.model.Category
 import com.example.borrowbay.data.model.Owner
 import com.example.borrowbay.data.model.RentalItem
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
 class RentalRepository {
-    private val fakeCategories = listOf(
-        Category("1", "All", "🏷️"),
-//        Category("2", "Electronics", "📷"),
-//        Category("3", "Sports", "🚴"),
-//        Category("4", "Tools", "🔧"),
-//        Category("5", "Camping", "⛺")
-    )
+    private val firestore = FirebaseFirestore.getInstance()
 
-    private val fakeRentals = listOf(
-        RentalItem(
-            id = "1",
-            name = "Canon EOS 90D DSLR",
-            pricePerDay = 25.0,
-            distance = 0.8,
-            rating = 4.9,
-            location = "San Francisco, CA",
-            imageUrls = listOf("https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000&auto=format&fit=crop"),
-            isAvailable = true,
-            ownerId = "o1",
-            categoryId = "2",
-            owner = Owner("o1", "Alex M.", null)
-        ),
-//        RentalItem(
-//            id = "2",
-//            name = "Trek Mountain Bike",
-//            pricePerDay = 18.0,
-//            distance = 1.2,
-//            rating = 4.7,
-//            location = "San Francisco, CA",
-//            imageUrls = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e?q=80&w=1000&auto=format&fit=crop"),
-//            isAvailable = true,
-//            ownerId = "o2",
-//            categoryId = "3",
-//            owner = Owner("o2", "Sarah K.", null)
-//        ),
-//        RentalItem(
-//            id = "3",
-//            name = "DeWalt Power Drill",
-//            pricePerDay = 12.0,
-//            distance = 2.1,
-//            rating = 4.8,
-//            location = "San Francisco, CA",
-//            imageUrls = listOf("https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=1000&auto=format&fit=crop"),
-//            isAvailable = true,
-//            ownerId = "o3",
-//            categoryId = "4",
-//            owner = Owner("o3", "Mike R.", null)
-//        ),
-//        RentalItem(
-//            id = "4",
-//            name = "4-Person Camping Tent",
-//            pricePerDay = 15.0,
-//            distance = 3.4,
-//            rating = 4.6,
-//            location = "San Francisco, CA",
-//            imageUrls = listOf("https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?q=80&w=1000&auto=format&fit=crop"),
-//            isAvailable = false,
-//            ownerId = "o4",
-//            categoryId = "5",
-//            owner = Owner("o4", "Lisa T.", null)
-//        )
-    )
-
-    fun getCategories(): Flow<List<Category>> = flow {
-        delay(500) // Simulate network delay
-        emit(fakeCategories)
+    fun getCategories(): Flow<List<Category>> = callbackFlow {
+        val listener = firestore.collection("categories")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val categories = snapshot?.documents?.mapNotNull { doc ->
+                    val id = doc.id
+                    val name = doc.getString("name") ?: ""
+                    Category(id = id, name = name)
+                } ?: emptyList()
+                trySend(categories)
+            }
+        awaitClose { listener.remove() }
     }
 
-    fun getNearbyRentals(): Flow<List<RentalItem>> = flow {
-        delay(800)
-        emit(fakeRentals)
+    fun getNearbyRentals(): Flow<List<RentalItem>> = callbackFlow {
+        val listener = firestore.collection("products")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val items = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                trySend(items)
+            }
+        awaitClose { listener.remove() }
     }
 
-    fun getTrendingRentals(): Flow<List<RentalItem>> = flow {
-        delay(1000)
-        emit(fakeRentals.shuffled())
+    fun getTrendingRentals(): Flow<List<RentalItem>> = callbackFlow {
+        // For now, just returning the same products as trending
+        val listener = firestore.collection("products")
+            .limit(10)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val items = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+                trySend(items)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun getMyListings(userId: String): List<RentalItem> {
+        return try {
+            val snapshot = firestore.collection("products")
+                .whereEqualTo("sellerId", userId)
+                .get()
+                .await()
+            snapshot.documents.mapNotNull { doc ->
+                doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getRentedItems(userId: String): List<RentalItem> {
+        return try {
+            val snapshot = firestore.collection("rentals")
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+            // This would normally join with products, but simplified for now
+            emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }

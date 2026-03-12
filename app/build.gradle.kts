@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -53,21 +54,30 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
 
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.play.services.auth)
+
     // Image Loading
     implementation(libs.coil.compose)
     
     // Razorpay
     implementation(libs.razorpay.checkout)
 
-    // Supabase
+    // Location and Maps
+    implementation(libs.play.services.location)
+    implementation(libs.maps.compose)
+    implementation(libs.osmdroid.android)
+
+    // Supabase (Keeping for Storage)
     implementation(platform(libs.supabase.bom))
-    implementation(libs.supabase.postgrest)
-    implementation(libs.supabase.auth)
     implementation(libs.supabase.storage)
-    implementation(libs.supabase.compose.auth)
 
     // Ktor
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.androidx.compose.foundation)
 
     // Location & Maps
     implementation(libs.play.services.location)

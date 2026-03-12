@@ -30,7 +30,8 @@ fun ProfileScreen(
     profile: UserProfile,
     onProfileClick: () -> Unit,
     onActiveListingsClick: () -> Unit,
-    onRentalHistoryClick: () -> Unit
+    onRentalHistoryClick: () -> Unit,
+    onSignOutClick: () -> Unit
 ) {
     Column(
         modifier = modifier
@@ -140,7 +141,7 @@ fun ProfileScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         Button(
-            onClick = { /* Sign Out */ },
+            onClick = onSignOutClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
