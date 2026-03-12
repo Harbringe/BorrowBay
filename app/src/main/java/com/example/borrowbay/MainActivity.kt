@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BorrowBayTheme {
-                UserRegistrationScreen(onBackClick = { /* Handle back */ }, onRegistrationSuccess = { /* Navigate next */ })
+                NavGraph()
             }
         }
     }

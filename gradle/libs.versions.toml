@@ -13,6 +13,7 @@ ktor = "3.0.3"
 navigationCompose = "2.8.5"
 coil = "2.7.0"
 razorpay = "1.6.40"
+foundation = "1.10.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +45,7 @@ supabase-compose-auth = { group = "io.github.jan-tennert.supabase", name = "comp
 
 # Ktor
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
