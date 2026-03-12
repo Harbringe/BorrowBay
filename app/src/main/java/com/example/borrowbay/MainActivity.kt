@@ -11,6 +11,7 @@ import com.example.borrowbay.ui.theme.BorrowBayTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         enableEdgeToEdge()
         setContent {
             BorrowBayTheme {
