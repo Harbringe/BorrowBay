@@ -40,12 +40,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.borrowbay.features.auth.viewmodel.AuthViewModel
 import com.example.borrowbay.features.createlisting.viewmodel.ListingUiState
 import com.example.borrowbay.features.createlisting.viewmodel.ProductViewModel
 import com.example.borrowbay.ui.theme.*
@@ -61,8 +63,11 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -84,6 +89,54 @@ fun AddProductScreen(
     val uiState by viewModel.listingState
     var currentStep by remember { mutableStateOf(ListingStep.PHOTOS) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    
+    // Authorization Check
+    var isAuthorized by remember { mutableStateOf<Boolean?>(null) }
+    val auth = FirebaseAuth.getInstance()
+    val firestore = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(Unit) {
+        val uid = auth.currentUser?.uid
+        if (uid != null) {
+            try {
+                val doc = firestore.collection("users").document(uid).get().await()
+                val rzpId = doc.getString("razorpayId")
+                isAuthorized = !rzpId.isNullOrBlank()
+            } catch (e: Exception) {
+                isAuthorized = false
+            }
+        } else {
+            isAuthorized = false
+        }
+    }
+
+    if (isAuthorized == false) {
+        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color(0xFF718096))
+                Spacer(Modifier.height(16.dp))
+                Text("Setup Required", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "You need to connect a Razorpay account in your profile before you can list items for rent.",
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF718096)
+                )
+                Spacer(Modifier.height(32.dp))
+                Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
+                    Text("Go Back")
+                }
+            }
+        }
+        return
+    }
+
+    if (isAuthorized == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Ocean)
+        }
+        return
+    }
 
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }

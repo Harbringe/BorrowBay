@@ -9,6 +9,7 @@ import com.example.borrowbay.features.createlisting.ui.AddProductScreen
 import com.example.borrowbay.features.home.ui.HomeScreen
 import com.example.borrowbay.features.onboarding.ui.OnboardingScreen
 import com.example.borrowbay.features.profile.ui.ProfileApp
+import com.example.borrowbay.features.userregistration.ui.UserRegistrationScreen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -38,6 +39,23 @@ fun NavGraph() {
                     navController.navigate("home") {
                         popUpTo("login") { inclusive = true }
                     }
+                },
+                onNeedsRegistration = {
+                    navController.navigate("registration") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable("registration") {
+            UserRegistrationScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onRegistrationSuccess = {
+                    navController.navigate("home") {
+                        popUpTo("registration") { inclusive = true }
+                    }
                 }
             )
         }
@@ -59,7 +77,13 @@ fun NavGraph() {
             )
         }
         composable("profile") {
-            ProfileApp()
+            ProfileApp(
+                onSignOut = {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

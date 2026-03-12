@@ -1,6 +1,7 @@
 package com.example.borrowbay.features.auth.ui
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -34,6 +35,7 @@ import com.google.android.gms.common.api.ApiException
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onNeedsRegistration: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -43,10 +45,20 @@ fun LoginScreen(
     var phoneNumber by remember { mutableStateOf("") }
     var otpCode by remember { mutableStateOf("") }
     var showPhoneInput by remember { mutableStateOf(false) }
+    var isSignUpMode by remember { mutableStateOf(false) }
     
     val authState by viewModel.authState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
+
+    // Handle Back Button
+    BackHandler(enabled = showPhoneInput || authState is AuthState.OtpSent) {
+        if (authState is AuthState.OtpSent) {
+            viewModel.resetState()
+        } else if (showPhoneInput) {
+            showPhoneInput = false
+        }
+    }
 
     // Firebase Google Sign-In Launcher
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -71,6 +83,9 @@ fun LoginScreen(
             is AuthState.Authenticated -> {
                 onLoginSuccess()
             }
+            is AuthState.NeedsRegistration -> {
+                onNeedsRegistration()
+            }
             is AuthState.Error -> {
                 snackbarHostState.showSnackbar((authState as AuthState.Error).message)
                 viewModel.resetState()
@@ -94,7 +109,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(64.dp))
             
             Text(
-                text = "Welcome to BorrowBay",
+                text = if (isSignUpMode) "Create Account" else "Welcome to BorrowBay",
                 fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF1A202C)
@@ -103,7 +118,9 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
-                text = "Create an account to start renting and earning.",
+                text = if (isSignUpMode) 
+                    "Join our community and start earning." 
+                    else "Rent anything, anywhere, anytime.",
                 fontSize = 18.sp,
                 color = Color(0xFF718096)
             )
@@ -164,7 +181,11 @@ fun LoginScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("G", fontWeight = FontWeight.Bold, color = Color(0xFFEA4335), fontSize = 22.sp)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text("Continue with Google", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    if (isSignUpMode) "Sign up with Google" else "Continue with Google", 
+                                    fontSize = 16.sp, 
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
@@ -180,7 +201,11 @@ fun LoginScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(22.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text("Continue with Phone", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    if (isSignUpMode) "Sign up with Phone" else "Continue with Phone",
+                                    fontSize = 16.sp, 
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 
@@ -230,7 +255,13 @@ fun LoginScreen(
                         Spacer(modifier = Modifier.height(32.dp))
 
                         Button(
-                            onClick = { viewModel.signInWithEmail(email, password) },
+                            onClick = { 
+                                if (isSignUpMode) {
+                                    viewModel.signUpWithEmail(email, password)
+                                } else {
+                                    viewModel.signInWithEmail(email, password)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth().height(64.dp),
                             shape = RoundedCornerShape(20.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0066FF)),
@@ -242,18 +273,34 @@ fun LoginScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Email, contentDescription = null)
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text("Continue with Email", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        if (isSignUpMode) "Create Account" else "Continue with Email", 
+                                        fontSize = 18.sp, 
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Note: If you don't have an account, one will be created automatically.",
-                            fontSize = 12.sp,
-                            color = Color(0xFF718096),
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isSignUpMode) "Already have an account?" else "Don't have an account?",
+                                color = Color(0xFF718096)
+                            )
+                            TextButton(onClick = { isSignUpMode = !isSignUpMode }) {
+                                Text(
+                                    text = if (isSignUpMode) "Sign In" else "Sign Up",
+                                    color = Color(0xFF0066FF),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
 

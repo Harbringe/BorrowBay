@@ -11,7 +11,10 @@ import com.example.borrowbay.features.profile.viewmodel.ProfileViewModel
 import com.example.borrowbay.features.profile.viewmodel.ProfileScreenState
 
 @Composable
-fun ProfileApp(viewModel: ProfileViewModel = viewModel()) {
+fun ProfileApp(
+    onSignOut: () -> Unit = {},
+    viewModel: ProfileViewModel = viewModel()
+) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
 
@@ -27,7 +30,11 @@ fun ProfileApp(viewModel: ProfileViewModel = viewModel()) {
                     profile = userProfile,
                     onProfileClick = { viewModel.navigateTo(ProfileScreenState.Details) },
                     onActiveListingsClick = { viewModel.navigateTo(ProfileScreenState.ActiveListings) },
-                    onRentalHistoryClick = { viewModel.navigateTo(ProfileScreenState.RentalHistory) }
+                    onRentalHistoryClick = { viewModel.navigateTo(ProfileScreenState.RentalHistory) },
+                    onSignOutClick = {
+                        viewModel.signOut()
+                        onSignOut()
+                    }
                 )
             }
             ProfileScreenState.Details -> {

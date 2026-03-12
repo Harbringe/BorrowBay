@@ -1,8 +1,10 @@
 package com.example.borrowbay.features.auth.viewmodel
 
 import android.app.Activity
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.borrowbay.data.repository.UserRepository
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,18 +17,28 @@ import java.util.concurrent.TimeUnit
 class AuthViewModel : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
+    private val userRepository = UserRepository()
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     private var verificationId: String? = null
 
     init {
-        auth.addAuthStateListener { firebaseAuth ->
-            if (firebaseAuth.currentUser != null) {
-                _authState.value = AuthState.Authenticated
-            } else {
-                _authState.value = AuthState.Idle
+        checkCurrentUser()
+    }
+
+    private fun checkCurrentUser() {
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            viewModelScope.launch {
+                try {
+                    checkUserProfile(currentUser.uid)
+                } catch (e: Exception) {
+                    _authState.value = AuthState.Idle
+                }
             }
+        } else {
+            _authState.value = AuthState.Idle
         }
     }
 
@@ -35,24 +47,40 @@ class AuthViewModel : ViewModel() {
             _authState.value = AuthState.Loading
             try {
                 val credential = GoogleAuthProvider.getCredential(idToken, null)
-                auth.signInWithCredential(credential).await()
-                _authState.value = AuthState.Authenticated
+                val result = auth.signInWithCredential(credential).await()
+                val user = result.user
+                if (user != null) {
+                    checkUserProfile(user.uid)
+                } else {
+                    _authState.value = AuthState.Error("Google Sign-In failed: No user found")
+                }
             } catch (e: Exception) {
+                Log.e("AuthViewModel", "Google Sign-In Error", e)
                 _authState.value = AuthState.Error(e.localizedMessage ?: "Google Sign-In failed")
             }
         }
     }
 
     fun signInWithEmail(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) {
+            _authState.value = AuthState.Error("Email and password cannot be empty")
+            return
+        }
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                auth.signInWithEmailAndPassword(email, password).await()
-                _authState.value = AuthState.Authenticated
+                val result = auth.signInWithEmailAndPassword(email, password).await()
+                val user = result.user
+                if (user != null) {
+                    checkUserProfile(user.uid)
+                }
             } catch (e: Exception) {
+                Log.e("AuthViewModel", "Email Sign-In Error", e)
                 if (e is FirebaseAuthInvalidUserException) {
-                    // If user doesn't exist, try to sign them up instead
-                    signUpWithEmail(email, password)
+                    // Try to sign up if user doesn't exist
+                    signUpWithEmailInternal(email, password)
+                } else if (e is FirebaseAuthInvalidCredentialsException) {
+                    _authState.value = AuthState.Error("Invalid credentials. Check your email/password.")
                 } else {
                     _authState.value = AuthState.Error(e.localizedMessage ?: "Email sign-in failed")
                 }
@@ -60,18 +88,51 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    private fun signUpWithEmail(email: String, password: String) {
+    fun signUpWithEmail(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) {
+            _authState.value = AuthState.Error("Email and password cannot be empty")
+            return
+        }
+        if (password.length < 6) {
+            _authState.value = AuthState.Error("Password must be at least 6 characters")
+            return
+        }
+        
         viewModelScope.launch {
-            try {
-                auth.createUserWithEmailAndPassword(email, password).await()
-                _authState.value = AuthState.Authenticated
-            } catch (e: Exception) {
+            _authState.value = AuthState.Loading
+            signUpWithEmailInternal(email, password)
+        }
+    }
+
+    private suspend fun signUpWithEmailInternal(email: String, password: String) {
+        try {
+            val result = auth.createUserWithEmailAndPassword(email, password).await()
+            val user = result.user
+            if (user != null) {
+                _authState.value = AuthState.NeedsRegistration
+            }
+        } catch (e: Exception) {
+            Log.e("AuthViewModel", "Email Sign-Up Error", e)
+            if (e is FirebaseAuthUserCollisionException) {
+                // If they already have an account, try signing them in instead
+                try {
+                    val result = auth.signInWithEmailAndPassword(email, password).await()
+                    if (result.user != null) checkUserProfile(result.user!!.uid)
+                } catch (signInEx: Exception) {
+                    _authState.value = AuthState.Error("Account already exists. Incorrect password.")
+                }
+            } else {
                 _authState.value = AuthState.Error(e.localizedMessage ?: "Email sign-up failed")
             }
         }
     }
 
     fun signInWithPhone(phoneNumber: String, activity: Activity) {
+        if (phoneNumber.isBlank()) {
+            _authState.value = AuthState.Error("Phone number cannot be empty")
+            return
+        }
+        
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             
@@ -79,15 +140,19 @@ class AuthViewModel : ViewModel() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                     viewModelScope.launch {
                         try {
-                            auth.signInWithCredential(credential).await()
-                            _authState.value = AuthState.Authenticated
+                            val result = auth.signInWithCredential(credential).await()
+                            val user = result.user
+                            if (user != null) {
+                                checkUserProfile(user.uid)
+                            }
                         } catch (e: Exception) {
-                            _authState.value = AuthState.Error(e.localizedMessage ?: "Sign in failed")
+                            _authState.value = AuthState.Error(e.localizedMessage ?: "Phone sign-in failed")
                         }
                     }
                 }
 
                 override fun onVerificationFailed(e: FirebaseException) {
+                    Log.e("AuthViewModel", "Phone Verification Failed", e)
                     _authState.value = AuthState.Error(e.localizedMessage ?: "Verification failed")
                 }
 
@@ -113,11 +178,29 @@ class AuthViewModel : ViewModel() {
             _authState.value = AuthState.Loading
             try {
                 val credential = PhoneAuthProvider.getCredential(id, otpCode)
-                auth.signInWithCredential(credential).await()
-                _authState.value = AuthState.Authenticated
+                val result = auth.signInWithCredential(credential).await()
+                val user = result.user
+                if (user != null) {
+                    checkUserProfile(user.uid)
+                }
             } catch (e: Exception) {
+                Log.e("AuthViewModel", "OTP Verification Error", e)
                 _authState.value = AuthState.Error(e.localizedMessage ?: "Invalid OTP")
             }
+        }
+    }
+
+    private suspend fun checkUserProfile(uid: String) {
+        try {
+            val exists = userRepository.userExists(uid)
+            if (exists) {
+                _authState.value = AuthState.Authenticated
+            } else {
+                _authState.value = AuthState.NeedsRegistration
+            }
+        } catch (e: Exception) {
+            Log.e("AuthViewModel", "Profile Check Error", e)
+            _authState.value = AuthState.NeedsRegistration
         }
     }
 
@@ -136,5 +219,6 @@ sealed class AuthState {
     data class Success(val message: String) : AuthState()
     data class OtpSent(val phoneNumber: String) : AuthState()
     data object Authenticated : AuthState()
+    data object NeedsRegistration : AuthState()
     data class Error(val message: String) : AuthState()
 }
