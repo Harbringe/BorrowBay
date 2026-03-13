@@ -10,11 +10,13 @@ import com.example.borrowbay.data.model.Category
 import com.example.borrowbay.data.model.RentalItem
 import com.example.borrowbay.data.repository.RentalRepository
 import com.example.borrowbay.data.repository.UserRepository
+import com.example.borrowbay.util.LocationUtils
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,31 +79,40 @@ class HomeViewModel(
         val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             try {
+                _uiState.update { it.copy(isLoading = true) }
                 val user = userRepository.getUser(uid)
                 if (user != null) {
                     _uiState.update { it.copy(
-                        userAddress = user.address ?: user.locationName ?: "Unknown Location",
+                        userAddress = user.address ?: user.locationName ?: "Set your location",
                         userLatitude = user.latitude,
                         userLongitude = user.longitude,
                         userRazorpayId = user.razorpayId
                     ) }
-                    // After we have user location, refresh items
                     refreshNearbyAndGlobal()
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
                 }
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error fetching user data", e)
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
 
     fun updateLocation(lat: Double, lng: Double, address: String) {
-        _uiState.update { it.copy(
-            userLatitude = lat,
-            userLongitude = lng,
-            userAddress = address,
-            isLocationPickerVisible = false
-        ) }
-        refreshNearbyAndGlobal()
+        val uid = auth.currentUser?.uid
+        viewModelScope.launch {
+            if (uid != null) {
+                userRepository.updateUserLocation(uid, lat, lng, address)
+            }
+            _uiState.update { it.copy(
+                userLatitude = lat,
+                userLongitude = lng,
+                userAddress = address,
+                isLocationPickerVisible = false
+            ) }
+            refreshNearbyAndGlobal()
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -167,12 +178,13 @@ class HomeViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
             refreshNearbyAndGlobal()
+            delay(1000)
             _uiState.update { it.copy(isRefreshing = false) }
         }
     }
 
     private fun refreshNearbyAndGlobal() {
-        // Start nearby collection in a separate job so it doesn't block global load
+        // Collect nearby in a way that we can wait for the first emission if needed
         nearbyJob?.cancel()
         nearbyJob = viewModelScope.launch {
             val state = _uiState.value
@@ -213,7 +225,8 @@ class HomeViewModel(
             _uiState.update { it.copy(
                 globalRentals = if (lastVisibleGlobalDoc == null) result.items else it.globalRentals + result.items,
                 hasMoreGlobal = result.hasMore,
-                isLoadingMore = false
+                isLoadingMore = false,
+                isLoading = false
             ) }
             lastVisibleGlobalDoc = result.lastDoc
         }

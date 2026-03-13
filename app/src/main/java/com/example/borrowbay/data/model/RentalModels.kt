@@ -30,7 +30,8 @@ data class Owner(
     val name: String = "",
     val avatarUrl: String? = null,
     val phone: String = "",
-    val email: String = ""
+    val email: String = "",
+    val razorpayId: String? = null // Added to support payments
 )
 
 @Serializable

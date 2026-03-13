@@ -1,12 +1,15 @@
 package com.example.borrowbay.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.borrowbay.features.auth.ui.LoginScreen
 import com.example.borrowbay.features.createlisting.ui.AddProductScreen
 import com.example.borrowbay.features.home.ui.HomeScreen
+import com.example.borrowbay.features.productdetail.ui.ProductDetailScreen
 import com.example.borrowbay.features.onboarding.ui.OnboardingScreen
 import com.example.borrowbay.features.profile.ui.ProfileApp
 import com.example.borrowbay.features.userregistration.ui.UserRegistrationScreen
@@ -66,7 +69,20 @@ fun NavGraph() {
                 },
                 onAddClick = {
                     navController.navigate("add_product")
+                },
+                onItemClick = { productId ->
+                    navController.navigate("product_detail/$productId")
                 }
+            )
+        }
+        composable(
+            route = "product_detail/{productId}",
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: return@composable
+            ProductDetailScreen(
+                productId = productId,
+                onBackClick = { navController.popBackStack() }
             )
         }
         composable("add_product") {

@@ -6,13 +6,12 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.DocumentSnapshot
 import com.example.borrowbay.data.model.Category
 import com.example.borrowbay.data.model.RentalItem
-import com.example.borrowbay.data.model.Owner
 import com.example.borrowbay.features.home.viewmodel.SortOption
+import com.example.borrowbay.util.LocationUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
-import kotlin.math.*
 
 data class PaginatedResult<T>(
     val items: List<T>,
@@ -23,7 +22,6 @@ data class PaginatedResult<T>(
 class RentalRepository {
     private val firestore = FirebaseFirestore.getInstance()
 
-    // Standard categories for the app
     val staticCategories = listOf(
         Category("Electronics", "Electronics", "📷"),
         Category("Sports", "Sports", "🚲"),
@@ -35,7 +33,6 @@ class RentalRepository {
     )
 
     fun getCategories(): Flow<List<Category>> = callbackFlow {
-        // We use hardcoded categories as requested, but keep the flow for consistency
         trySend(staticCategories)
         awaitClose { }
     }
@@ -49,7 +46,6 @@ class RentalRepository {
     ): Flow<List<RentalItem>> = callbackFlow {
         var baseQuery: Query = firestore.collection("products")
         
-        // Filter by category if one is selected (and it's not "All")
         if (category != null && category != "All") {
             baseQuery = baseQuery.whereEqualTo("categoryId", category)
         }
@@ -64,15 +60,13 @@ class RentalRepository {
                 doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
             } ?: emptyList()
 
-            // Filter by search query
             if (!query.isNullOrBlank()) {
                 items = items.filter { it.name.contains(query, ignoreCase = true) }
             }
 
-            // Real distance calculation and 10km filtering
             val nearbyItems = items.map { item ->
                 val distance = if (lat != null && lng != null && item.latitude != null && item.longitude != null) {
-                    calculateDistance(lat, lng, item.latitude, item.longitude)
+                    LocationUtils.calculateDistance(lat, lng, item.latitude, item.longitude)
                 } else 100.0
                 item.copy(distance = distance)
             }.filter { it.distance <= 10.0 }
@@ -116,7 +110,7 @@ class RentalRepository {
 
             val updatedItems = items.map { item ->
                 val distance = if (lat != null && lng != null && item.latitude != null && item.longitude != null) {
-                    calculateDistance(lat, lng, item.latitude, item.longitude)
+                    LocationUtils.calculateDistance(lat, lng, item.latitude, item.longitude)
                 } else 0.0
                 item.copy(distance = distance)
             }
@@ -126,15 +120,4 @@ class RentalRepository {
             PaginatedResult(emptyList(), null, false)
         }
     }
-
-    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val r = 6371
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLon = Math.toRadians(lon2 - lon1)
-        val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return r * c
-    }
-
-    suspend fun seedTestData() { }
 }

@@ -47,4 +47,19 @@ class UserRepository {
             false
         }
     }
+
+    suspend fun updateUserLocation(userId: String, lat: Double, lng: Double, address: String): Boolean {
+        return try {
+            usersCollection.document(userId).update(
+                mapOf(
+                    "latitude" to lat,
+                    "longitude" to lng,
+                    "address" to address
+                )
+            ).await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

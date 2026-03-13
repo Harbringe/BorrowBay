@@ -73,10 +73,10 @@ import java.util.Locale
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
     onProfileClick: () -> Unit = {},
-    onAddClick: () -> Unit = {}
+    onAddClick: () -> Unit = {},
+    onItemClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     val listState = rememberLazyListState()
 
     // Infinite scroll detection
@@ -147,26 +147,35 @@ fun HomeScreen(
                 }
 
                 // Nearby Grid
-                if (uiState.nearbyRentals.isNotEmpty()) {
+                if (uiState.isLoading && uiState.nearbyRentals.isEmpty()) {
+                    item { SectionHeader("Nearby rentals", "Finding items near you...") }
+                    items(2) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(20.dp)).shimmerLoadingAnimation())
+                            Box(Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(20.dp)).shimmerLoadingAnimation())
+                        }
+                    }
+                } else if (uiState.nearbyRentals.isNotEmpty()) {
                     item {
                         SectionHeader("Nearby rentals", "Within 10km radius")
                     }
                     val rows = uiState.nearbyRentals.chunked(2)
                     items(rows) { rowItems ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             rowItems.forEach { item ->
-                                RentalCard(item = item, modifier = Modifier.weight(1f))
+                                RentalCard(
+                                    item = item, 
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onItemClick(item.id) }
+                                )
                             }
                             if (rowItems.size < 2) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                } else if (!uiState.isLoading) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No rentals found nearby (10km)", color = Color.Gray)
                         }
                     }
                 }
@@ -177,16 +186,24 @@ fun HomeScreen(
                     SectionHeader("All items", "From everywhere")
                 }
 
-                if (uiState.globalRentals.isEmpty() && !uiState.isLoading) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No items available at the moment", color = Color.Gray)
-                        }
+                if (uiState.isLoading && uiState.globalRentals.isEmpty()) {
+                    items(3) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .padding(horizontal = 20.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .shimmerLoadingAnimation()
+                        )
                     }
-                }
-
-                items(uiState.globalRentals) { item ->
-                    GlobalRentalItem(item = item)
+                } else {
+                    items(uiState.globalRentals) { item ->
+                        GlobalRentalItem(
+                            item = item,
+                            onClick = { onItemClick(item.id) }
+                        )
+                    }
                 }
 
                 if (uiState.isLoadingMore) {
@@ -222,7 +239,6 @@ fun HomeScreen(
 }
 
 private fun simplifyAddress(address: String): String {
-    // Basic logic to extract City and State from a full address string
     val parts = address.split(",")
     return if (parts.size >= 3) {
         "${parts[parts.size - 3].trim()}, ${parts[parts.size - 2].trim()}"
@@ -406,9 +422,9 @@ fun SectionHeader(title: String, subtitle: String) {
 }
 
 @Composable
-fun GlobalRentalItem(item: RentalItem) {
+fun GlobalRentalItem(item: RentalItem, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceLight),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -490,7 +506,7 @@ fun BottomNavigationBar(
     }
 }
 
-private data class BottomNavItem(
+data class BottomNavItem(
     val label: String,
     val icon: ImageVector,
     val onClick: () -> Unit,
@@ -590,42 +606,44 @@ fun LocationPickerDialog(
                 )
 
                 Box(modifier = Modifier.padding(16.dp)) {
-                    OutlinedTextField(
-                        value = currentAddress,
-                        onValueChange = {
-                            currentAddress = it
-                            if (it.length > 3) searchAddress(it) else showSuggestions = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search address...") },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = Ocean) },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                                if (fineGranted) requestLocation() else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                            }) {
-                                Icon(Icons.Outlined.MyLocation, null, tint = Ocean)
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
+                    Column {
+                        OutlinedTextField(
+                            value = currentAddress,
+                            onValueChange = {
+                                currentAddress = it
+                                if (it.length > 3) searchAddress(it) else showSuggestions = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search address...") },
+                            leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = Ocean) },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    if (fineGranted) requestLocation() else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                }) {
+                                    Icon(Icons.Outlined.MyLocation, null, tint = Ocean)
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
 
-                    if (showSuggestions) {
-                        DropdownMenu(
-                            expanded = showSuggestions,
-                            onDismissRequest = { showSuggestions = false },
-                            modifier = Modifier.fillMaxWidth(0.9f),
-                            properties = PopupProperties(focusable = false)
-                        ) {
-                            suggestions.forEach { addr ->
-                                DropdownMenuItem(
-                                    text = { Text(addr.getAddressLine(0)) },
-                                    onClick = {
-                                        showSuggestions = false
-                                        updateFromLocation(addr.latitude, addr.longitude)
-                                    }
-                                )
+                        if (showSuggestions) {
+                            DropdownMenu(
+                                expanded = showSuggestions,
+                                onDismissRequest = { showSuggestions = false },
+                                modifier = Modifier.fillMaxWidth(0.9f),
+                                properties = PopupProperties(focusable = false)
+                            ) {
+                                suggestions.forEach { addr ->
+                                    DropdownMenuItem(
+                                        text = { Text(addr.getAddressLine(0)) },
+                                        onClick = {
+                                            showSuggestions = false
+                                            updateFromLocation(addr.latitude, addr.longitude)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
