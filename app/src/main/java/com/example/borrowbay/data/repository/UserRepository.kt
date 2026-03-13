@@ -38,4 +38,13 @@ class UserRepository {
             false
         }
     }
+
+    suspend fun updateRazorpayId(userId: String, razorpayId: String): Boolean {
+        return try {
+            usersCollection.document(userId).update("razorpayId", razorpayId).await()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

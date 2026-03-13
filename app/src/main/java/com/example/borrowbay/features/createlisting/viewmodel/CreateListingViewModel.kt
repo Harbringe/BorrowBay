@@ -46,16 +46,17 @@ class CreateListingViewModel(
         viewModelScope.launch {
             _listingState.value = ListingUiState.Loading
             
+            // Updated field names to match the Item model (synced with Home screen)
             val item = Item(
                 name = name,
-                category = category,
+                categoryId = category,
                 description = description,
-                rentAmount = rentAmount,
+                pricePerDay = rentAmount,
                 securityDeposit = securityDeposit,
-                address = address,
+                location = address,
                 latitude = lat,
                 longitude = lng,
-                sellerId = currentUser.uid,
+                ownerId = currentUser.uid,
                 sellerEmail = currentUser.email ?: ""
             )
 

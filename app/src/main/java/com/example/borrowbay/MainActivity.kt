@@ -15,8 +15,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BorrowBayTheme {
-//                NavGraph()
-                HomeScreen()
+                NavGraph()
+//                HomeScreen()
             }
         }
     }

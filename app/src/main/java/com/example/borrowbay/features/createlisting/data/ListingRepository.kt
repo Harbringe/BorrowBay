@@ -12,7 +12,8 @@ import java.util.UUID
 class ListingRepository {
     private val client = supabase
     private val firestore = FirebaseFirestore.getInstance()
-    private val itemsCollection = firestore.collection("items")
+    // Changed "items" to "products" to match the Home screen and Security Rules
+    private val productsCollection = firestore.collection("products")
 
     suspend fun addItem(item: Item, imageBytesList: List<ByteArray>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -29,9 +30,9 @@ class ListingRepository {
             // 2. Save Item details to Firebase Firestore
             val finalItem = item.copy(imageUrls = imageUrls)
             val documentRef = if (finalItem.id.isNullOrBlank()) {
-                itemsCollection.document()
+                productsCollection.document()
             } else {
-                itemsCollection.document(finalItem.id)
+                productsCollection.document(finalItem.id)
             }
             
             val itemToSave = finalItem.copy(id = documentRef.id)

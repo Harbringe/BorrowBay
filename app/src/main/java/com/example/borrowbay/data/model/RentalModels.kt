@@ -4,32 +4,38 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class RentalItem(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-    val pricePerDay: Double,
+    val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    val categoryId: String = "",
+    val pricePerDay: Double = 0.0,
+    val securityDeposit: Double = 0.0,
     val distance: Double = 0.0,
     val rating: Double = 0.0,
-    val location: String,
-    val imageUrls: List<String> = emptyList(), // List of images, 0th is the main image
+    val location: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val imageUrls: List<String> = emptyList(),
     val isAvailable: Boolean = true,
-    val ownerId: String,
-    val categoryId: String,
+    val ownerId: String = "",
+    val sellerEmail: String = "",
+    val sellerPhone: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
     val owner: Owner? = null
 )
 
 @Serializable
 data class Owner(
-    val id: String,
-    val name: String,
+    val id: String = "",
+    val name: String = "",
     val avatarUrl: String? = null,
-    val phone: String,
-    val email: String
+    val phone: String = "",
+    val email: String = ""
 )
 
 @Serializable
 data class Category(
-    val id: String,
-    val name: String,
-    val icon: String? = null // Emoji or icon name
+    val id: String = "",
+    val name: String = "",
+    val icon: String? = null
 )
