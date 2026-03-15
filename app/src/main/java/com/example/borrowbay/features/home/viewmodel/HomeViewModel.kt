@@ -22,8 +22,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-enum class SortOption {
-    DISTANCE, PRICE_LOW_HIGH, PRICE_HIGH_LOW, RATING
+enum class SortOption(val displayName: String) {
+    DISTANCE("Nearby First"),
+    PRICE_LOW_HIGH("Price: Low to High"),
+    PRICE_HIGH_LOW("Price: High to Low")
 }
 
 data class HomeUiState(
@@ -35,6 +37,8 @@ data class HomeUiState(
     val trendingRentals: List<RentalItem> = emptyList(),
     val selectedCategory: String? = null,
     val userAddress: String = "Detecting location...",
+    val userName: String = "User",
+    val userAvatarUrl: String? = null,
     val userLatitude: Double? = null,
     val userLongitude: Double? = null,
     val userRazorpayId: String? = null,
@@ -84,6 +88,8 @@ class HomeViewModel(
                 if (user != null) {
                     _uiState.update { it.copy(
                         userAddress = user.address ?: user.locationName ?: "Set your location",
+                        userName = user.name ?: "User",
+                        userAvatarUrl = user.avatarUrl,
                         userLatitude = user.latitude,
                         userLongitude = user.longitude,
                         userRazorpayId = user.razorpayId
@@ -91,15 +97,17 @@ class HomeViewModel(
                     refreshNearbyAndGlobal()
                 } else {
                     _uiState.update { it.copy(isLoading = false) }
+                    refreshNearbyAndGlobal()
                 }
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error fetching user data", e)
                 _uiState.update { it.copy(isLoading = false) }
+                refreshNearbyAndGlobal()
             }
         }
     }
 
-    fun updateLocation(lat: Double, lng: Double, address: String) {
+    fun updateLocation(lat: Double, lng: Double, address: String, shouldClosePicker: Boolean = true) {
         val uid = auth.currentUser?.uid
         viewModelScope.launch {
             if (uid != null) {
@@ -109,7 +117,7 @@ class HomeViewModel(
                 userLatitude = lat,
                 userLongitude = lng,
                 userAddress = address,
-                isLocationPickerVisible = false
+                isLocationPickerVisible = if (shouldClosePicker) false else it.isLocationPickerVisible
             ) }
             refreshNearbyAndGlobal()
         }
@@ -118,14 +126,17 @@ class HomeViewModel(
     @SuppressLint("MissingPermission")
     fun detectCurrentLocation(context: Context) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
             .addOnSuccessListener { location ->
                 location?.let {
                     viewModelScope.launch {
                         val address = getAddressFromCoords(context, it.latitude, it.longitude)
-                        updateLocation(it.latitude, it.longitude, address)
+                        updateLocation(it.latitude, it.longitude, address, shouldClosePicker = false)
                     }
                 }
+            }
+            .addOnFailureListener { e ->
+                Log.e("HomeViewModel", "Error detecting location", e)
             }
     }
 
@@ -133,6 +144,7 @@ class HomeViewModel(
         return withContext(Dispatchers.IO) {
             try {
                 val geocoder = Geocoder(context, Locale.getDefault())
+                @Suppress("DEPRECATION")
                 val addresses = geocoder.getFromLocation(lat, lng, 1)
                 addresses?.firstOrNull()?.getAddressLine(0) ?: "Unknown Address"
             } catch (e: Exception) {

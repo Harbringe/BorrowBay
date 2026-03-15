@@ -6,11 +6,13 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.DocumentSnapshot
 import com.example.borrowbay.data.model.Category
 import com.example.borrowbay.data.model.RentalItem
+import com.example.borrowbay.data.model.Owner
 import com.example.borrowbay.features.home.viewmodel.SortOption
 import com.example.borrowbay.util.LocationUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 
 data class PaginatedResult<T>(
@@ -32,9 +34,47 @@ class RentalRepository {
         Category("Gaming", "Gaming", "🎮")
     )
 
-    fun getCategories(): Flow<List<Category>> = callbackFlow {
-        trySend(staticCategories)
-        awaitClose { }
+    private val dummyRentals = listOf(
+        RentalItem(
+            id = "dummy1",
+            name = "Sony A7III Camera",
+            description = "Full-frame mirrorless camera with 28-70mm lens. Perfect for photography and 4K video.",
+            categoryId = "Electronics",
+            pricePerDay = 800.0,
+            securityDeposit = 5000.0,
+            distance = 1.2,
+            location = "Connaught Place, Delhi",
+            imageUrls = listOf("https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=800&q=80"),
+            owner = Owner(id = "o1", name = "John Carter")
+        ),
+        RentalItem(
+            id = "dummy2",
+            name = "Mountain Trek Bike",
+            description = "High-performance mountain bike with front suspension and disc brakes.",
+            categoryId = "Sports",
+            pricePerDay = 450.0,
+            securityDeposit = 2000.0,
+            distance = 3.5,
+            location = "Andheri, Mumbai",
+            imageUrls = listOf("https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80"),
+            owner = Owner(id = "o2", name = "Sarah Smith")
+        ),
+        RentalItem(
+            id = "dummy3",
+            name = "Power Drill & Set",
+            description = "Cordless power drill with 2 batteries and a complete bit set for home repairs.",
+            categoryId = "Tools",
+            pricePerDay = 250.0,
+            securityDeposit = 1500.0,
+            distance = 0.8,
+            location = "Whitefield, Bangalore",
+            imageUrls = listOf("https://images.unsplash.com/photo-1504148455328-497c5ef215d0?auto=format&fit=crop&w=800&q=80"),
+            owner = Owner(id = "o3", name = "Mike Ross")
+        )
+    )
+
+    fun getCategories(): Flow<List<Category>> = flow {
+        emit(staticCategories)
     }
 
     fun getNearbyRentals(
@@ -52,47 +92,40 @@ class RentalRepository {
         }
 
         val listener = baseQuery.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                trySend(emptyList())
-                return@addSnapshotListener
-            }
-            
             var items = snapshot?.documents?.mapNotNull { doc ->
                 val item = doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
                 val isAvail = doc.getBoolean("available") ?: doc.getBoolean("isAvailable") ?: true
                 item?.copy(isAvailable = isAvail)
             } ?: emptyList()
 
-            items = items.filter { it.isAvailable }
-            if (excludeUserId != null) {
-                items = items.filter { it.ownerId != excludeUserId }
-            }
-
-            if (!query.isNullOrBlank()) {
-                items = items.filter { it.name.contains(query, ignoreCase = true) }
-            }
-
-            val nearbyItems = items.map { item ->
+            val processedItems = items.map { item ->
                 val distance = if (lat != null && lng != null && item.latitude != null && item.longitude != null) {
                     LocationUtils.calculateDistance(lat, lng, item.latitude, item.longitude)
                 } else 0.0
                 item.copy(distance = distance)
             }
 
-            val filteredNearby = if (lat != null && lng != null) {
-                nearbyItems.filter { it.distance <= 50.0 }
-            } else {
-                nearbyItems
+            val combined = (processedItems + dummyRentals).distinctBy { it.id }
+            
+            var filtered = combined.filter { it.isAvailable }
+            if (excludeUserId != null) {
+                filtered = filtered.filter { it.ownerId != excludeUserId }
+            }
+            if (!query.isNullOrBlank()) {
+                filtered = filtered.filter { it.name.contains(query, ignoreCase = true) }
+            }
+            if (category != null && category != "All") {
+                filtered = filtered.filter { it.categoryId == category }
             }
 
-            val sortedItems = when (sort) {
-                SortOption.DISTANCE -> filteredNearby.sortedBy { it.distance }
-                SortOption.PRICE_LOW_HIGH -> filteredNearby.sortedBy { it.pricePerDay }
-                SortOption.PRICE_HIGH_LOW -> filteredNearby.sortedByDescending { it.pricePerDay }
-                else -> filteredNearby
+            val sorted = when (sort) {
+                SortOption.DISTANCE -> filtered.sortedBy { it.distance }
+                SortOption.PRICE_LOW_HIGH -> filtered.sortedBy { it.pricePerDay }
+                SortOption.PRICE_HIGH_LOW -> filtered.sortedByDescending { it.pricePerDay }
+                else -> filtered
             }
 
-            trySend(sortedItems)
+            trySend(sorted)
         }
         awaitClose { listener.remove() }
     }
@@ -109,39 +142,35 @@ class RentalRepository {
     ): PaginatedResult<RentalItem> {
         return try {
             var baseQuery: Query = firestore.collection("products")
-            
             if (category != null && category != "All") {
                 baseQuery = baseQuery.whereEqualTo("categoryId", category)
             }
-
             if (lastDoc != null && lastDoc is DocumentSnapshot) {
                 baseQuery = baseQuery.startAfter(lastDoc)
             }
 
-            val snapshot = baseQuery.limit(limit * 3).get().await()
-            var items = snapshot.documents.mapNotNull { doc ->
+            val snapshot = baseQuery.limit(limit).get().await()
+            val items = snapshot.documents.mapNotNull { doc ->
                 val item = doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
                 val isAvail = doc.getBoolean("available") ?: doc.getBoolean("isAvailable") ?: true
                 item?.copy(isAvailable = isAvail)
             }
 
-            items = items.filter { it.isAvailable }
-            if (excludeUserId != null) {
-                items = items.filter { it.ownerId != excludeUserId }
+            val combined = if (lastDoc == null) {
+                (items + dummyRentals).distinctBy { it.id }
+            } else items
+
+            var filtered = combined.filter { it.isAvailable }
+            if (!query.isNullOrBlank()) {
+                filtered = filtered.filter { it.name.contains(query, ignoreCase = true) }
+            }
+            if (category != null && category != "All") {
+                filtered = filtered.filter { it.categoryId == category }
             }
 
-            val finalItems = items.take(limit.toInt())
-
-            val updatedItems = finalItems.map { item ->
-                val distance = if (lat != null && lng != null && item.latitude != null && item.longitude != null) {
-                    LocationUtils.calculateDistance(lat, lng, item.latitude, item.longitude)
-                } else 0.0
-                item.copy(distance = distance)
-            }
-            
-            PaginatedResult(updatedItems, snapshot.documents.lastOrNull(), snapshot.size() >= limit)
+            PaginatedResult(filtered, snapshot.documents.lastOrNull(), snapshot.size() >= limit)
         } catch (e: Exception) {
-            PaginatedResult(emptyList(), null, false)
+            PaginatedResult(dummyRentals, null, false)
         }
     }
 
@@ -174,8 +203,7 @@ class RentalRepository {
                 val items = snapshot?.documents?.mapNotNull { doc ->
                     val item = doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
                     val isAvail = doc.getBoolean("available") ?: doc.getBoolean("isAvailable") ?: true
-                    val rentalDays = doc.getLong("rentalDurationDays")?.toInt()
-                    item?.copy(isAvailable = isAvail, rentalDurationDays = rentalDays)
+                    item?.copy(isAvailable = isAvail)
                 } ?: emptyList()
                 trySend(items)
             }
@@ -187,19 +215,16 @@ class RentalRepository {
             .whereEqualTo("renterId", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    trySend(emptyOf())
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
                 val items = snapshot?.documents?.mapNotNull { doc ->
                     val item = doc.toObject(RentalItem::class.java)?.copy(id = doc.id)
                     val isAvail = doc.getBoolean("available") ?: doc.getBoolean("isAvailable") ?: true
-                    val rentalDays = doc.getLong("rentalDurationDays")?.toInt()
-                    item?.copy(isAvailable = isAvail, rentalDurationDays = rentalDays)
+                    item?.copy(isAvailable = isAvail)
                 } ?: emptyList()
                 trySend(items)
             }
         awaitClose { listener.remove() }
     }
 }
-
-private fun <T> emptyOf(): List<T> = emptyList()

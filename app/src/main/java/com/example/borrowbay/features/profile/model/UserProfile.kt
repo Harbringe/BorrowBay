@@ -4,5 +4,7 @@ data class UserProfile(
     val name: String,
     val phone: String,
     val email: String,
-    val address: String
+    val address: String,
+    val razorpayId: String = "",
+    val avatarUri: String = ""
 )

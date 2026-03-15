@@ -12,6 +12,7 @@ import com.example.borrowbay.features.profile.viewmodel.ProfileScreenState
 
 @Composable
 fun ProfileApp(
+    onBack: () -> Unit = {},
     onSignOut: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
@@ -28,9 +29,11 @@ fun ProfileApp(
                 ProfileScreen(
                     modifier = Modifier.padding(innerPadding),
                     profile = userProfile,
+                    onBack = onBack,
                     onProfileClick = { viewModel.navigateTo(ProfileScreenState.Details) },
                     onActiveListingsClick = { viewModel.navigateTo(ProfileScreenState.ActiveListings) },
                     onRentalHistoryClick = { viewModel.navigateTo(ProfileScreenState.RentalHistory) },
+                    onPaymentSetupClick = { viewModel.navigateTo(ProfileScreenState.PaymentSetup) },
                     onSignOutClick = {
                         viewModel.signOut()
                         onSignOut()
@@ -56,6 +59,15 @@ fun ProfileApp(
             ProfileScreenState.RentalHistory -> {
                 RentalHistoryScreen(
                     modifier = Modifier.padding(innerPadding),
+                    onBack = { viewModel.navigateTo(ProfileScreenState.Profile) }
+                )
+            }
+            ProfileScreenState.PaymentSetup -> {
+                PaymentSetupScreen(
+                    currentId = userProfile.razorpayId,
+                    onSave = { newId ->
+                        viewModel.updateProfile(userProfile.copy(razorpayId = newId))
+                    },
                     onBack = { viewModel.navigateTo(ProfileScreenState.Profile) }
                 )
             }

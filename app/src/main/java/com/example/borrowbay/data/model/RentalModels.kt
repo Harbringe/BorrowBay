@@ -11,7 +11,6 @@ data class RentalItem(
     val pricePerDay: Double = 0.0,
     val securityDeposit: Double = 0.0,
     val distance: Double = 0.0,
-    val rating: Double = 0.0,
     val location: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -34,7 +33,7 @@ data class Owner(
     val avatarUrl: String? = null,
     val phone: String = "",
     val email: String = "",
-    val razorpayId: String? = null // Added to support payments
+    val razorpayId: String? = null
 )
 
 @Serializable

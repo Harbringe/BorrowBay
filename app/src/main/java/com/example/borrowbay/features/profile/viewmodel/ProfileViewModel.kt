@@ -68,7 +68,9 @@ class ProfileViewModel(
                             name = doc.getString("name") ?: currentUser.displayName ?: "",
                             phone = doc.getString("phone") ?: currentUser.phoneNumber ?: "",
                             email = doc.getString("email") ?: currentUser.email ?: "",
-                            address = doc.getString("address") ?: ""
+                            address = doc.getString("address") ?: "",
+                            razorpayId = doc.getString("razorpayId") ?: "",
+                            avatarUri = doc.getString("avatarUri") ?: ""
                         )
                     } else {
                         _userProfile.value = UserProfile(
@@ -125,4 +127,5 @@ sealed class ProfileScreenState {
     data object Details : ProfileScreenState()
     data object ActiveListings : ProfileScreenState()
     data object RentalHistory : ProfileScreenState()
+    data object PaymentSetup : ProfileScreenState()
 }

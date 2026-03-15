@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.borrowbay.features.auth.viewmodel.AuthState
 import com.example.borrowbay.features.auth.viewmodel.AuthViewModel
+import com.example.borrowbay.ui.theme.*
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -51,7 +53,6 @@ fun LoginScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
 
-    // Handle Back Button
     BackHandler(enabled = showPhoneInput || authState is AuthState.OtpSent) {
         if (authState is AuthState.OtpSent) {
             viewModel.resetState()
@@ -60,7 +61,6 @@ fun LoginScreen(
         }
     }
 
-    // Firebase Google Sign-In Launcher
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -77,15 +77,8 @@ fun LoginScreen(
 
     LaunchedEffect(authState) {
         when (authState) {
-            is AuthState.Success -> {
-                snackbarHostState.showSnackbar((authState as AuthState.Success).message)
-            }
-            is AuthState.Authenticated -> {
-                onLoginSuccess()
-            }
-            is AuthState.NeedsRegistration -> {
-                onNeedsRegistration()
-            }
+            is AuthState.Authenticated -> onLoginSuccess()
+            is AuthState.NeedsRegistration -> onNeedsRegistration()
             is AuthState.Error -> {
                 snackbarHostState.showSnackbar((authState as AuthState.Error).message)
                 viewModel.resetState()
@@ -95,7 +88,7 @@ fun LoginScreen(
     }
 
     Scaffold(
-        containerColor = Color.White,
+        containerColor = BackgroundLight,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
@@ -110,9 +103,9 @@ fun LoginScreen(
             
             Text(
                 text = if (isSignUpMode) "Create Account" else "Welcome to BorrowBay",
-                fontSize = 34.sp,
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1A202C)
+                color = Color.Black
             )
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -121,35 +114,42 @@ fun LoginScreen(
                 text = if (isSignUpMode) 
                     "Join our community and start earning." 
                     else "Rent anything, anywhere, anytime.",
-                fontSize = 18.sp,
-                color = Color(0xFF718096)
+                fontSize = 16.sp,
+                color = MutedFgLight
             )
 
             Spacer(modifier = Modifier.height(48.dp))
 
             if (authState is AuthState.OtpSent) {
-                // OTP Entry View
-                Text("Enter OTP", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1A202C))
-                Text("Sent to ${(authState as AuthState.OtpSent).phoneNumber}", fontSize = 14.sp, color = Color(0xFF718096))
+                Text("Enter OTP", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.Black)
+                Text("Sent to ${(authState as AuthState.OtpSent).phoneNumber}", fontSize = 14.sp, color = MutedFgLight)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = otpCode,
                     onValueChange = { if (it.length <= 6) otpCode = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("000000", color = Color(0xFF718096)) },
+                    placeholder = { Text("000000", color = MutedFgLight) },
                     shape = RoundedCornerShape(16.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Ocean,
+                        unfocusedBorderColor = BorderLight,
+                        unfocusedContainerColor = SurfaceLight,
+                        focusedContainerColor = SurfaceLight,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    )
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = { viewModel.verifyOtp(otpCode) },
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0066FF)),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
                     enabled = otpCode.length >= 6 && authState !is AuthState.Loading
                 ) {
                     if (authState is AuthState.Loading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(color = OnPrimary, modifier = Modifier.size(24.dp))
                     } else {
                         Text("Verify OTP", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
@@ -158,10 +158,9 @@ fun LoginScreen(
                     onClick = { viewModel.resetState() },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text("Change Phone Number", color = Color(0xFF0066FF))
+                    Text("Change Phone Number", color = Ocean)
                 }
             } else {
-                // Main Login View
                 AnimatedVisibility(visible = !showPhoneInput) {
                     Column {
                         OutlinedButton(
@@ -173,13 +172,13 @@ fun LoginScreen(
                                 val googleSignInClient = GoogleSignIn.getClient(context, gso)
                                 googleSignInLauncher.launch(googleSignInClient.signInIntent)
                             },
-                            modifier = Modifier.fillMaxWidth().height(64.dp),
-                            shape = RoundedCornerShape(32.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1A202C))
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, BorderLight),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = SurfaceLight, contentColor = Color.Black)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("G", fontWeight = FontWeight.Bold, color = Color(0xFFEA4335), fontSize = 22.sp)
+                                Text("G", fontWeight = FontWeight.Bold, color = Destructive, fontSize = 22.sp)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     if (isSignUpMode) "Sign up with Google" else "Continue with Google", 
@@ -193,13 +192,13 @@ fun LoginScreen(
 
                         OutlinedButton(
                             onClick = { showPhoneInput = true },
-                            modifier = Modifier.fillMaxWidth().height(64.dp),
-                            shape = RoundedCornerShape(32.dp),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1A202C))
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, BorderLight),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = SurfaceLight, contentColor = Color.Black)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(22.dp), tint = Ocean)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     if (isSignUpMode) "Sign up with Phone" else "Continue with Phone",
@@ -209,47 +208,63 @@ fun LoginScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(40.dp))
+                        Spacer(modifier = Modifier.height(32.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-                            Text("or", modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFF718096))
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = BorderLight)
+                            Text("or", modifier = Modifier.padding(horizontal = 16.dp), color = MutedFgLight)
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = BorderLight)
                         }
 
-                        Spacer(modifier = Modifier.height(40.dp))
+                        Spacer(modifier = Modifier.height(32.dp))
 
-                        Text("Email address", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1A202C))
+                        Text("Email address", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("you@example.com", color = Color(0xFF718096)) },
-                            shape = RoundedCornerShape(16.dp),
+                            placeholder = { Text("you@example.com", color = MutedFgLight) },
+                            shape = RoundedCornerShape(14.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            singleLine = true
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Ocean,
+                                unfocusedBorderColor = BorderLight,
+                                unfocusedContainerColor = SurfaceLight,
+                                focusedContainerColor = SurfaceLight,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            )
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Text("Password", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1A202C))
+                        Text("Password", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Minimum 6 characters", color = Color(0xFF718096)) },
-                            shape = RoundedCornerShape(16.dp),
+                            placeholder = { Text("Minimum 6 characters", color = MutedFgLight) },
+                            shape = RoundedCornerShape(14.dp),
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             trailingIcon = {
                                 val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(imageVector = image, contentDescription = null)
+                                    Icon(imageVector = image, contentDescription = null, tint = MutedFgLight)
                                 }
                             },
-                            singleLine = true
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Ocean,
+                                unfocusedBorderColor = BorderLight,
+                                unfocusedContainerColor = SurfaceLight,
+                                focusedContainerColor = SurfaceLight,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            )
                         )
 
                         Spacer(modifier = Modifier.height(32.dp))
@@ -262,13 +277,13 @@ fun LoginScreen(
                                     viewModel.signInWithEmail(email, password)
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(64.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0066FF)),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
                             enabled = email.isNotEmpty() && password.length >= 6 && authState !is AuthState.Loading
                         ) {
                             if (authState is AuthState.Loading) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                                CircularProgressIndicator(color = OnPrimary, modifier = Modifier.size(24.dp))
                             } else {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Email, contentDescription = null)
@@ -291,12 +306,12 @@ fun LoginScreen(
                         ) {
                             Text(
                                 text = if (isSignUpMode) "Already have an account?" else "Don't have an account?",
-                                color = Color(0xFF718096)
+                                color = MutedFgLight
                             )
                             TextButton(onClick = { isSignUpMode = !isSignUpMode }) {
                                 Text(
                                     text = if (isSignUpMode) "Sign In" else "Sign Up",
-                                    color = Color(0xFF0066FF),
+                                    color = Ocean,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -306,26 +321,34 @@ fun LoginScreen(
 
                 AnimatedVisibility(visible = showPhoneInput) {
                     Column {
-                        Text("Phone Number", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1A202C))
+                        Text("Phone Number", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedTextField(
                             value = phoneNumber,
                             onValueChange = { phoneNumber = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("+1234567890", color = Color(0xFF718096)) },
-                            shape = RoundedCornerShape(16.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                            placeholder = { Text("+1234567890", color = MutedFgLight) },
+                            shape = RoundedCornerShape(14.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Ocean,
+                                unfocusedBorderColor = BorderLight,
+                                unfocusedContainerColor = SurfaceLight,
+                                focusedContainerColor = SurfaceLight,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            )
                         )
                         Spacer(modifier = Modifier.height(32.dp))
                         Button(
                             onClick = { viewModel.signInWithPhone(phoneNumber, context as Activity) },
-                            modifier = Modifier.fillMaxWidth().height(64.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0066FF)),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
                             enabled = phoneNumber.isNotEmpty() && authState !is AuthState.Loading
                         ) {
                             if (authState is AuthState.Loading) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                                CircularProgressIndicator(color = OnPrimary, modifier = Modifier.size(24.dp))
                             } else {
                                 Text("Send OTP", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             }
@@ -334,7 +357,7 @@ fun LoginScreen(
                             onClick = { showPhoneInput = false },
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
-                            Text("Back to other options", color = Color(0xFF718096))
+                            Text("Back to other options", color = MutedFgLight)
                         }
                     }
                 }
@@ -351,10 +374,10 @@ fun LoginScreen(
                     Icons.Default.Shield,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = Color(0xFF38A169)
+                    tint = Emerald
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Your data is encrypted and secure", fontSize = 14.sp, color = Color(0xFF718096))
+                Text("Your data is encrypted and secure", fontSize = 14.sp, color = MutedFgLight)
             }
         }
     }

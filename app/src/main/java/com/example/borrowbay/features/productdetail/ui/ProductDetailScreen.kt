@@ -61,10 +61,10 @@ fun ProductDetailScreen(
     }
 
     Scaffold(
+        containerColor = BackgroundLight,
         bottomBar = {
             if (uiState.item != null && uiState.item!!.isAvailable) {
                 RentNowBottomBar(
-                    pricePerDay = uiState.item!!.pricePerDay,
                     isLoading = uiState.isRenting,
                     onRentClick = {
                         val auth = FirebaseAuth.getInstance()
@@ -87,22 +87,22 @@ fun ProductDetailScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize().background(Color.White)) {
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (uiState.isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Ocean)
             } else if (uiState.error != null) {
-                Text(uiState.error!!, modifier = Modifier.align(Alignment.Center), color = Color.Red)
+                Text(uiState.error!!, modifier = Modifier.align(Alignment.Center), color = Destructive)
             } else uiState.item?.let { item ->
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     ImageCarousel(item.imageUrls, onBackClick)
                     
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
                         ProductHeader(item, uiState.calculatedDistance)
                         Spacer(modifier = Modifier.height(24.dp))
                         SellerCard(item)
-                        Spacer(modifier = Modifier.height(24.dp))
-                        DescriptionSection(item.description)
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(32.dp))
+                        DescriptionSection(item.description ?: "")
+                        Spacer(modifier = Modifier.height(32.dp))
                         PriceBreakdownCard(uiState)
                         Spacer(modifier = Modifier.height(24.dp))
                         RentalDaysPicker(
@@ -129,7 +129,7 @@ fun ImageCarousel(imageUrls: List<String>, onBackClick: () -> Unit) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxWidth().height(350.dp).background(Color(0xFFF5F5F5))) {
+    Box(modifier = Modifier.fillMaxWidth().height(380.dp).background(MutedLight)) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
@@ -142,21 +142,31 @@ fun ImageCarousel(imageUrls: List<String>, onBackClick: () -> Unit) {
             )
         }
 
-        IconButton(
+        Surface(
             onClick = onBackClick,
-            modifier = Modifier.statusBarsPadding().padding(16.dp).background(Color.White, CircleShape).size(40.dp)
+            shape = CircleShape,
+            color = SurfaceLight,
+            shadowElevation = 2.dp,
+            modifier = Modifier.statusBarsPadding().padding(16.dp).size(44.dp)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(20.dp))
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(20.dp), tint = Color.Black)
+            }
         }
 
         if (imageUrls.size > 1) {
             Row(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 repeat(imageUrls.size) { iteration ->
-                    val color = if (pagerState.currentPage == iteration) Ocean else Color.White.copy(alpha = 0.5f)
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+                    val isSelected = pagerState.currentPage == iteration
+                    Box(
+                        modifier = Modifier
+                            .size(width = if (isSelected) 20.dp else 8.dp, height = 8.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Ocean else Color.White.copy(alpha = 0.5f))
+                    )
                 }
             }
         }
@@ -167,17 +177,17 @@ fun ImageCarousel(imageUrls: List<String>, onBackClick: () -> Unit) {
 fun ProductHeader(item: RentalItem, distance: Double) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Spacer(modifier = Modifier.height(4.dp))
+            Text(item.name, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.LocationOn, null, tint = Ocean, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("${String.format("%.1f", distance)} km away", color = Color.Gray, fontSize = 14.sp)
+                Text("${String.format("%.1f", distance)} km away", color = MutedFgLight, fontSize = 14.sp)
             }
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("₹${item.pricePerDay.toInt()}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ocean)
-            Text("per day", fontSize = 12.sp, color = Color.Gray)
+            Text("₹${item.pricePerDay.toInt()}", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Ocean)
+            Text("per day", fontSize = 12.sp, color = MutedFgLight)
         }
     }
 }
@@ -188,42 +198,39 @@ fun SellerCard(item: RentalItem) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = BackgroundLight),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
         border = BorderStroke(1.dp, BorderLight)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!item.owner?.avatarUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = item.owner?.avatarUrl,
-                    contentDescription = null,
-                    modifier = Modifier.size(50.dp).clip(CircleShape),
-                    contentScale = ContentScale.Crop
+            // Always show initial image for seller
+            Box(
+                modifier = Modifier.size(52.dp).background(MutedLight, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = (item.owner?.name ?: "??").take(1).uppercase(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = Ocean
                 )
-            } else {
-                Box(
-                    modifier = Modifier.size(50.dp).background(Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text((item.owner?.name ?: "??").take(2).uppercase(), fontWeight = FontWeight.Bold, color = Ocean)
-                }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.owner?.name ?: "Unknown Seller", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("Lender", color = Ocean, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(item.owner?.name ?: "Unknown Seller", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+                Text("Verified Lender", color = Emerald, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
             Row {
                 IconButton(onClick = {
                     val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${item.owner?.phone}"))
                     context.startActivity(intent)
-                }, modifier = Modifier.background(Color.White, CircleShape).size(40.dp)) {
+                }, modifier = Modifier.background(MutedLight, CircleShape).size(40.dp)) {
                     Icon(Icons.Default.Phone, null, tint = Ocean, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(8.dp))
                 IconButton(onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${item.owner?.email}"))
                     context.startActivity(intent)
-                }, modifier = Modifier.background(Color.White, CircleShape).size(40.dp)) {
+                }, modifier = Modifier.background(MutedLight, CircleShape).size(40.dp)) {
                     Icon(Icons.Default.Email, null, tint = Ocean, modifier = Modifier.size(20.dp))
                 }
             }
@@ -234,9 +241,9 @@ fun SellerCard(item: RentalItem) {
 @Composable
 fun DescriptionSection(description: String) {
     Column {
-        Text("Description", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(description, color = Color.DarkGray, fontSize = 14.sp, lineHeight = 20.sp)
+        Text("Description", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(description, color = SlateDeepLight, fontSize = 15.sp, lineHeight = 22.sp)
     }
 }
 
@@ -245,25 +252,27 @@ fun PriceBreakdownCard(state: com.example.borrowbay.features.productdetail.viewm
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
         border = BorderStroke(1.dp, BorderLight)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("Price Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Price Breakdown", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
             Spacer(modifier = Modifier.height(16.dp))
             PriceRow("Rental (${state.rentalDays} day)", "₹${state.subtotalPrice.toInt()}")
             PriceRow("Security deposit", "₹${state.securityDeposit.toInt()}", isHighlight = true)
             PriceRow("Platform fee", "₹${state.platformFee.toInt()}")
-            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = BorderLight)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = BorderLight)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Total", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("₹${state.totalPrice.toInt()}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Total", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                Text("₹${state.totalPrice.toInt()}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Ocean)
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Shield, null, tint = Emerald, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Deposit refunded upon safe return", color = Emerald, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            Surface(color = Emerald.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
+                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, null, tint = Emerald, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Deposit refunded upon safe return", color = Emerald, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
@@ -271,9 +280,9 @@ fun PriceBreakdownCard(state: com.example.borrowbay.features.productdetail.viewm
 
 @Composable
 fun PriceRow(label: String, amount: String, isHighlight: Boolean = false) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Color.Gray, fontSize = 14.sp)
-        Text(amount, color = if (isHighlight) Color(0xFFDAA520) else Color.Black, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MutedFgLight, fontSize = 14.sp)
+        Text(amount, color = if (isHighlight) AmberDark else Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
     }
 }
 
@@ -282,7 +291,7 @@ fun RentalDaysPicker(days: Int, onDaysChange: (Int) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
         border = BorderStroke(1.dp, BorderLight)
     ) {
         Row(
@@ -290,14 +299,14 @@ fun RentalDaysPicker(days: Int, onDaysChange: (Int) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Rental Duration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Rental Duration", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onDaysChange(days - 1) }, enabled = days > 1) {
-                    Icon(Icons.Default.RemoveCircleOutline, null, tint = if (days > 1) Ocean else Color.Gray)
+                    Icon(Icons.Default.RemoveCircle, null, tint = if (days > 1) Ocean else MutedLight, modifier = Modifier.size(28.dp))
                 }
-                Text("$days Days", modifier = Modifier.width(60.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                Text("$days Days", modifier = Modifier.width(70.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
                 IconButton(onClick = { onDaysChange(days + 1) }) {
-                    Icon(Icons.Default.AddCircleOutline, null, tint = Ocean)
+                    Icon(Icons.Default.AddCircle, null, tint = Ocean, modifier = Modifier.size(28.dp))
                 }
             }
         }
@@ -305,11 +314,11 @@ fun RentalDaysPicker(days: Int, onDaysChange: (Int) -> Unit) {
 }
 
 @Composable
-fun RentNowBottomBar(pricePerDay: Double, isLoading: Boolean, onRentClick: () -> Unit) {
+fun RentNowBottomBar(isLoading: Boolean, onRentClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 16.dp,
-        color = Color.White
+        shadowElevation = 8.dp,
+        color = SurfaceLight
     ) {
         Box(
             modifier = Modifier.padding(16.dp).navigationBarsPadding(),
@@ -319,13 +328,14 @@ fun RentNowBottomBar(pricePerDay: Double, isLoading: Boolean, onRentClick: () ->
                 onClick = onRentClick,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Ocean),
+                colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
                 enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = OnPrimary)
                 } else {
-                    Text("Rent Now — ₹${pricePerDay.toInt()}/day", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    // Removed per day rent from the button
+                    Text("Rent Now", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

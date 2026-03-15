@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.borrowbay.features.onboarding.model.OnboardingPage
 import com.example.borrowbay.features.onboarding.viewmodel.OnboardingViewModel
+import com.example.borrowbay.ui.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -36,16 +37,17 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        containerColor = Color.White,
+        containerColor = BackgroundLight,
         topBar = {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.TopEnd
             ) {
                 TextButton(onClick = onFinished) {
-                    Text("Skip", color = Color(0xFF718096), fontSize = 16.sp)
+                    Text("Skip", color = MutedFgLight, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -65,7 +67,6 @@ fun OnboardingScreen(
                 OnboardingContent(pages[position])
             }
 
-            // Page Indicator
             Row(
                 Modifier
                     .height(8.dp)
@@ -74,19 +75,18 @@ fun OnboardingScreen(
             ) {
                 repeat(pages.size) { iteration ->
                     val isSelected = pagerState.currentPage == iteration
-                    val color = if (isSelected) Color(0xFF0066FF) else Color(0xFFE2E8F0)
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
                             .clip(CircleShape)
-                            .background(color)
+                            .background(if (isSelected) Ocean else BorderLight)
                             .width(if (isSelected) 24.dp else 8.dp)
                             .fillMaxHeight()
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             Button(
                 onClick = {
@@ -102,20 +102,19 @@ fun OnboardingScreen(
                     .fillMaxWidth()
                     .height(64.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0066FF))
+                colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = pages[pagerState.currentPage].buttonText,
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = Color.White
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -130,18 +129,17 @@ fun OnboardingContent(page: OnboardingPage) {
         verticalArrangement = Arrangement.Center,
         modifier = Modifier.fillMaxSize()
     ) {
-        // Icon Container
         Surface(
-            modifier = Modifier.size(130.dp),
+            modifier = Modifier.size(140.dp),
             shape = RoundedCornerShape(32.dp),
-            color = Color.White,
-            shadowElevation = 8.dp
+            color = SurfaceLight,
+            shadowElevation = 4.dp
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(
                     imageVector = page.icon,
                     contentDescription = null,
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(64.dp),
                     tint = page.iconColor
                 )
             }
@@ -154,7 +152,7 @@ fun OnboardingContent(page: OnboardingPage) {
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            color = Color(0xFF1A202C),
+            color = Color.Black,
             lineHeight = 38.sp
         )
 
@@ -162,11 +160,11 @@ fun OnboardingContent(page: OnboardingPage) {
 
         Text(
             text = page.description,
-            fontSize = 17.sp,
+            fontSize = 16.sp,
             textAlign = TextAlign.Center,
-            color = Color(0xFF718096),
+            color = MutedFgLight,
             modifier = Modifier.padding(horizontal = 16.dp),
-            lineHeight = 26.sp
+            lineHeight = 24.sp
         )
     }
 }

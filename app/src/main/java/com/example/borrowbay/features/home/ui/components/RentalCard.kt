@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,30 +20,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.borrowbay.data.model.RentalItem
-import com.example.borrowbay.ui.theme.Emerald
-import com.example.borrowbay.ui.theme.Ocean
+import com.example.borrowbay.ui.theme.*
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun RentalCard(
     item: RentalItem,
     modifier: Modifier = Modifier,
+    showRenterInfo: Boolean = false,
+    showRentalStatus: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     Card(
-        modifier = modifier.padding(bottom = 16.dp),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Added slight elevation for better visibility
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick
     ) {
-        Column(modifier = Modifier.padding(8.dp)) { // Added inner padding to the whole card
-            // Image Section with rounded corners
+        Column(modifier = Modifier.padding(8.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
+                    .aspectRatio(1.1f)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFF5F5F5))
+                    .background(MutedLight)
             ) {
                 AsyncImage(
                     model = item.imageUrls.firstOrNull(),
@@ -55,27 +60,27 @@ fun RentalCard(
                         .padding(10.dp)
                         .align(Alignment.TopStart),
                     shape = RoundedCornerShape(10.dp),
-                    color = if (item.isAvailable) Emerald.copy(alpha = 0.9f) else Color.Gray.copy(alpha = 0.9f)
+                    color = (if (item.isAvailable) Emerald else Color.Gray).copy(alpha = 0.9f)
                 ) {
                     Text(
                         text = if (item.isAvailable) "Available" else "Rented",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
             }
 
-            // Info Section
             Column(modifier = Modifier.padding(top = 12.dp, start = 4.dp, end = 4.dp)) {
                 Text(
                     text = item.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     color = Color.Black,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.heightIn(min = 20.sp.value.dp) // Maintain consistent title height
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -85,61 +90,87 @@ fun RentalCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.Bottom) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "₹${item.pricePerDay.toInt()}",
-                            fontSize = 16.sp,
+                            fontSize = 18.sp,
                             color = Ocean,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                         Text(
                             text = "/day",
-                            fontSize = 11.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 1.dp)
+                            fontSize = 12.sp,
+                            color = MutedFgLight,
+                            modifier = Modifier.padding(start = 2.dp)
                         )
                     }
                     
-                    Text(
-                        text = "⊙ ${String.format("%.1f", item.distance)} km",
-                        fontSize = 11.sp,
-                        color = Color.Gray
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.MyLocation, null, tint = MutedFgLight, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(2.dp))
+                        val distanceText = String.format(Locale.ROOT, "%.1f", item.distance)
+                        Text(
+                            text = "$distanceText km",
+                            fontSize = 11.sp,
+                            color = MutedFgLight
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                // Placeholder or Actual Rental Status to keep height consistent
+                if (showRentalStatus && item.rentedAt != null && item.rentalDurationDays != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val elapsedDays = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - item.rentedAt)
+                    val remainingDays = item.rentalDurationDays - elapsedDays
+                    
+                    Surface(
+                        color = if (remainingDays < 0) Destructive.copy(alpha = 0.1f) else Emerald.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (remainingDays < 0) "Overdue by ${-remainingDays} days" else "$remainingDays days remaining",
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (remainingDays < 0) Destructive else EmeraldDark
+                        )
+                    }
+                } else if (showRentalStatus) {
+                     Spacer(modifier = Modifier.height(8.dp))
+                     Box(modifier = Modifier.height(24.dp)) // Placeholder height
+                }
 
-                // Owner Info
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (!item.owner?.avatarUrl.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    val ownerName = item.owner?.name ?: "Unknown"
+                    val avatarUrl = item.owner?.avatarUrl
+                    
+                    if (!avatarUrl.isNullOrBlank()) {
                         AsyncImage(
-                            model = item.owner?.avatarUrl,
+                            model = avatarUrl,
                             contentDescription = null,
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape),
+                            modifier = Modifier.size(24.dp).clip(CircleShape),
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .background(Color(0xFFEEEEEE), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = (item.owner?.name ?: "??").take(2).uppercase(),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Gray
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp).clip(CircleShape).background(MutedLight),
+                            tint = MutedFgLight
+                        )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = item.owner?.name ?: "Unknown",
+                        text = if (showRenterInfo) "Rented by $ownerName" else ownerName,
                         fontSize = 12.sp,
-                        color = Color.Gray,
+                        color = MutedFgLight,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

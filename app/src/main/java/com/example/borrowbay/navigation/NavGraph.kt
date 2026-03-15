@@ -21,7 +21,6 @@ fun NavGraph() {
     val navController = rememberNavController()
     val auth = FirebaseAuth.getInstance()
     
-    // Check current auth status on start
     val startDestination = if (auth.currentUser != null) "home" else "onboarding"
 
     NavHost(
@@ -96,6 +95,9 @@ fun NavGraph() {
                 onBack = {
                     navController.popBackStack()
                 },
+                onGoToProfile = {
+                    navController.navigate("profile")
+                },
                 onSuccess = {
                     navController.popBackStack()
                 }
@@ -103,6 +105,9 @@ fun NavGraph() {
         }
         composable("profile") {
             ProfileApp(
+                onBack = {
+                    navController.popBackStack()
+                },
                 onSignOut = {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
