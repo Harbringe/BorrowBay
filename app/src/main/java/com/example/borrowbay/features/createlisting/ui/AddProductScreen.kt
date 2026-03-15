@@ -2,6 +2,7 @@ package com.example.borrowbay.features.createlisting.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,11 +53,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.borrowbay.features.createlisting.viewmodel.CreateListingViewModel
 import com.example.borrowbay.features.createlisting.viewmodel.ListingUiState
-import com.example.borrowbay.ui.theme.*
+import com.example.borrowbay.core.ui.theme.*
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -88,18 +92,25 @@ enum class ListingStep {
 fun AddProductScreen(
     viewModel: CreateListingViewModel = viewModel(),
     onBack: () -> Unit = {},
+    onGoToProfile: () -> Unit = {},
     onSuccess: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.listingState
     var currentStep by remember { mutableStateOf(ListingStep.PHOTOS) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
-    // Authorization Check
     var isAuthorized by remember { mutableStateOf<Boolean?>(null) }
     val auth = FirebaseAuth.getInstance()
     val firestore = FirebaseFirestore.getInstance()
+
+    // Initialize OSMDroid
+    LaunchedEffect(Unit) {
+        Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
+        Configuration.getInstance().userAgentValue = context.packageName
+    }
 
     LaunchedEffect(Unit) {
         val uid = auth.currentUser?.uid
@@ -121,7 +132,7 @@ fun AddProductScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color(0xFF718096))
                 Spacer(Modifier.height(16.dp))
-                Text("Setup Required", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Setup Required", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "You need to connect a Razorpay account in your profile before you can list items for rent.",
@@ -129,8 +140,17 @@ fun AddProductScreen(
                     color = Color(0xFF718096)
                 )
                 Spacer(Modifier.height(32.dp))
-                Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
-                    Text("Go Back")
+                Button(
+                    onClick = onGoToProfile, 
+                    modifier = Modifier.fillMaxWidth().height(56.dp), 
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Ocean)
+                ) {
+                    Text("Go to Profile", fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = onBack) {
+                    Text("Cancel", color = Color.Gray)
                 }
             }
         }
@@ -142,11 +162,6 @@ fun AddProductScreen(
             CircularProgressIndicator(color = Ocean)
         }
         return
-    }
-
-    // Initialize OSM Configuration
-    LaunchedEffect(Unit) {
-        Configuration.getInstance().userAgentValue = context.packageName
     }
 
     var name by remember { mutableStateOf("") }
@@ -166,8 +181,8 @@ fun AddProductScreen(
         LocationServices.getFusedLocationProviderClient(context) 
     }
 
-    val maxRent = 100000.0
-    val maxSecurity = 1000000.0
+    val maxRent = 1000.0
+    val maxSecurity = 10000.0
 
     LaunchedEffect(uiState) {
         if (uiState is ListingUiState.Success) {
@@ -211,8 +226,8 @@ fun AddProductScreen(
             try {
                 @SuppressLint("MissingPermission")
                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                    .addOnSuccessListener { location: Location? ->
-                        location?.let { getAddressFromLocation(it.latitude, it.longitude) }
+                    .addOnSuccessListener { loc ->
+                        loc?.let { getAddressFromLocation(it.latitude, it.longitude) }
                     }
             } catch (e: SecurityException) { e.printStackTrace() }
         }
@@ -438,7 +453,7 @@ fun AddProductScreen(
 fun PhotoStep(images: List<Uri>, onAdd: () -> Unit, onRemove: (Int) -> Unit) {
     Column {
         Text("Add photos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
-        Text("Add up to 8 photos. The first photo will be your cover.", color = MutedFgLight, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
+        Text("Add up to 5 photos. The first photo will be your cover.", color = MutedFgLight, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp))
         Spacer(Modifier.height(32.dp))
         LazyVerticalGrid(columns = GridCells.Fixed(3), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
@@ -543,7 +558,7 @@ fun PriceStep(rent: String, onRentChange: (String) -> Unit, security: String, on
             isError = (rent.toDoubleOrNull() ?: 0.0) > maxRent
         )
         if ((rent.toDoubleOrNull() ?: 0.0) > maxRent) {
-            Text("Maximum rent allowed is ₹1,00,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+            Text("Maximum rent allowed is ₹1,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
         }
 
         Spacer(Modifier.height(32.dp))
@@ -559,7 +574,7 @@ fun PriceStep(rent: String, onRentChange: (String) -> Unit, security: String, on
             isError = (security.toDoubleOrNull() ?: 0.0) > maxSecurity
         )
         if ((security.toDoubleOrNull() ?: 0.0) > maxSecurity) {
-            Text("Maximum security allowed is ₹10,00,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+            Text("Maximum security allowed is ₹10,000", color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
         }
     }
 }
@@ -576,9 +591,37 @@ fun LocationStep(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     var suggestions by remember { mutableStateOf<List<android.location.Address>>(emptyList()) }
     var showSuggestions by remember { mutableStateOf(false) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
+
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            controller.setZoom(15.0)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Auto-detect location on step load
+    LaunchedEffect(Unit) {
+        if (latitude == 0.0) {
+            onUseCurrent()
+        }
+    }
 
     fun searchAddress(query: String) {
         searchJob?.cancel()
@@ -602,12 +645,8 @@ fun LocationStep(
 
         Box(modifier = Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(20.dp)).background(MutedLight).border(1.dp, BorderLight, RoundedCornerShape(20.dp))) {
             AndroidView<MapView>(
-                factory = { ctx ->
-                    MapView(ctx).apply {
-                        setTileSource(TileSourceFactory.MAPNIK)
-                        setMultiTouchControls(true)
-                        controller.setZoom(15.0)
-
+                factory = { 
+                    mapView.apply {
                         val eventsReceiver = object : MapEventsReceiver {
                             override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
                                 onMapClick(p.latitude, p.longitude)
