@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.borrowbay.data.model.RentalItem
 import com.example.borrowbay.data.repository.RentalRepository
+import com.example.borrowbay.data.repository.UserRepository
 import com.example.borrowbay.features.profile.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -15,10 +16,10 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 class ProfileViewModel(
-    private val rentalRepository: RentalRepository = RentalRepository()
+    private val rentalRepository: RentalRepository = RentalRepository(),
+    private val userRepository: UserRepository = UserRepository()
 ) : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
@@ -62,26 +63,28 @@ class ProfileViewModel(
         if (currentUser != null) {
             viewModelScope.launch {
                 try {
-                    val doc = firestore.collection("users").document(currentUser.uid).get().await()
-                    if (doc.exists()) {
+                    val user = userRepository.getUser(currentUser.uid)
+                    if (user != null) {
                         _userProfile.value = UserProfile(
-                            name = doc.getString("name") ?: currentUser.displayName ?: "",
-                            phone = doc.getString("phone") ?: currentUser.phoneNumber ?: "",
-                            email = doc.getString("email") ?: currentUser.email ?: "",
-                            address = doc.getString("address") ?: "",
-                            razorpayId = doc.getString("razorpayId") ?: "",
-                            avatarUri = doc.getString("avatarUri") ?: ""
+                            name = if (user.name.isNotBlank()) user.name else (currentUser.displayName ?: ""),
+                            phone = user.phone ?: (currentUser.phoneNumber ?: ""),
+                            email = if (user.email.isNotBlank()) user.email else (currentUser.email ?: ""),
+                            address = user.address ?: "",
+                            razorpayId = user.razorpayId ?: "",
+                            avatarUri = user.avatarUrl ?: (currentUser.photoUrl?.toString() ?: "")
                         )
                     } else {
+                        // Fallback to Firebase Auth info
                         _userProfile.value = UserProfile(
                             name = currentUser.displayName ?: "",
                             phone = currentUser.phoneNumber ?: "",
                             email = currentUser.email ?: "",
-                            address = ""
+                            address = "",
+                            avatarUri = currentUser.photoUrl?.toString() ?: ""
                         )
                     }
                 } catch (e: Exception) {
-                    // Handle error
+                    e.printStackTrace()
                 }
             }
         }
@@ -92,13 +95,22 @@ class ProfileViewModel(
         if (currentUser != null) {
             viewModelScope.launch {
                 try {
+                    val data = mapOf(
+                        "name" to updatedProfile.name,
+                        "phone" to updatedProfile.phone,
+                        "email" to updatedProfile.email,
+                        "address" to updatedProfile.address,
+                        "razorpayId" to updatedProfile.razorpayId,
+                        "avatarUrl" to updatedProfile.avatarUri
+                    )
+                    
                     firestore.collection("users").document(currentUser.uid)
-                        .set(updatedProfile)
-                        .await()
+                        .update(data)
+                    
                     _userProfile.value = updatedProfile
                     navigateTo(ProfileScreenState.Profile)
                 } catch (e: Exception) {
-                    // Handle error
+                    e.printStackTrace()
                 }
             }
         }

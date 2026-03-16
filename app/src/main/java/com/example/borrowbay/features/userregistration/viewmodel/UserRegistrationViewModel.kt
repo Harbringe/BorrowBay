@@ -36,7 +36,7 @@ data class UserRegistrationUiState(
     val phone: String = "",
     val selectedCountry: Country = countries.first(),
     val address: String = "",
-    val latitude: Double? = 19.1235, // Default: L&T Main Building, Mumbai
+    val latitude: Double? = 19.1235, // L&T Main Building, Mumbai
     val longitude: Double? = 73.0135,
     val locationName: String = "",
     val razorpayId: String = "",
@@ -54,11 +54,9 @@ class UserRegistrationViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
 
     init {
-        // Pre-fill email and phone if available from Firebase Auth
         val currentUser = auth.currentUser
         if (currentUser != null) {
             val firebasePhone = currentUser.phoneNumber ?: ""
-            // Try to match country code from firebase phone
             val matchingCountry = countries.find { firebasePhone.startsWith(it.code) }
             val phoneWithoutCode = if (matchingCountry != null) {
                 firebasePhone.removePrefix(matchingCountry.code)
@@ -106,7 +104,9 @@ class UserRegistrationViewModel : ViewModel() {
     }
 
     fun updateRazorpayId(id: String) {
-        _uiState.update { it.copy(razorpayId = id) }
+        if (id.length <= 20) {
+            _uiState.update { it.copy(razorpayId = id) }
+        }
     }
 
     fun updateAvatarUri(uri: String?) {
@@ -161,7 +161,6 @@ class UserRegistrationViewModel : ViewModel() {
         
         viewModelScope.launch {
             try {
-                // 1. Upload Avatar to Supabase if it's a local Uri
                 var avatarUrl = state.avatarUri
                 
                 if (avatarUrl != null && (avatarUrl.startsWith("content://") || avatarUrl.startsWith("file://"))) {
@@ -172,14 +171,12 @@ class UserRegistrationViewModel : ViewModel() {
                     avatarUrl = generateInitialsAvatar(state.name, state.email)
                 }
                 
-                // 2. Update Firebase Auth Profile (DisplayName and Photo)
                 val profileUpdates = userProfileChangeRequest {
                     displayName = state.name
                     photoUri = Uri.parse(avatarUrl)
                 }
                 currentUser.updateProfile(profileUpdates).await()
 
-                // 3. Create User Object for Firestore
                 val fullPhone = if (state.phone.isNotBlank()) state.selectedCountry.code + state.phone else null
                 
                 val user = User(
@@ -195,9 +192,10 @@ class UserRegistrationViewModel : ViewModel() {
                     razorpayId = state.razorpayId.ifBlank { null }
                 )
                 
-                // 4. Save to Firestore
                 val success = userRepository.createUser(user)
                 if (success) {
+                    // Sign out after registration to force re-authentication as requested
+                    auth.signOut()
                     _uiState.update { it.copy(isLoading = false, isRegistrationSuccess = true) }
                 } else {
                     _uiState.update { it.copy(isLoading = false, error = "Failed to create profile in database") }
@@ -215,12 +213,10 @@ class UserRegistrationViewModel : ViewModel() {
             val fileName = "avatars/$userId.jpg"
             val bucket = supabase.storage.from("item-images")
             
-            // Upload the file
             bucket.upload(fileName, bytes) {
                 upsert = true
             }
             
-            // Get public URL
             bucket.publicUrl(fileName)
         } catch (e: Exception) {
             Log.e("UserRegistrationVM", "Supabase upload error", e)

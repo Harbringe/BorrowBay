@@ -77,8 +77,7 @@ class AuthViewModel : ViewModel() {
             } catch (e: Exception) {
                 Log.e("AuthViewModel", "Email Sign-In Error", e)
                 if (e is FirebaseAuthInvalidUserException) {
-                    // Try to sign up if user doesn't exist
-                    signUpWithEmailInternal(email, password)
+                    _authState.value = AuthState.Error("Account does not exist. Please sign up.")
                 } else if (e is FirebaseAuthInvalidCredentialsException) {
                     _authState.value = AuthState.Error("Invalid credentials. Check your email/password.")
                 } else {
@@ -114,13 +113,7 @@ class AuthViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.e("AuthViewModel", "Email Sign-Up Error", e)
             if (e is FirebaseAuthUserCollisionException) {
-                // If they already have an account, try signing them in instead
-                try {
-                    val result = auth.signInWithEmailAndPassword(email, password).await()
-                    if (result.user != null) checkUserProfile(result.user!!.uid)
-                } catch (signInEx: Exception) {
-                    _authState.value = AuthState.Error("Account already exists. Incorrect password.")
-                }
+                _authState.value = AuthState.Error("An account already exists with this email. Please sign in instead.")
             } else {
                 _authState.value = AuthState.Error(e.localizedMessage ?: "Email sign-up failed")
             }

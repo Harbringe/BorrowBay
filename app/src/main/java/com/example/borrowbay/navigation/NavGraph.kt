@@ -56,7 +56,8 @@ fun NavGraph() {
                     navController.popBackStack()
                 },
                 onRegistrationSuccess = {
-                    navController.navigate("home") {
+                    // Redirect to login after registration success as requested
+                    navController.navigate("login") {
                         popUpTo("registration") { inclusive = true }
                     }
                 }
