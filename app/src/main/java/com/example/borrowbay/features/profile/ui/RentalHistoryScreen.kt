@@ -31,7 +31,7 @@ fun RentalHistoryScreen(
     viewModel: ProfileViewModel = viewModel()
 ) {
     val rentals by viewModel.userRentals.collectAsState()
-    val isLoading by viewModel.isLoadingListings.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
         containerColor = BackgroundLight,

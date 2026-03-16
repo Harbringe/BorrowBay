@@ -25,13 +25,22 @@ class RentalRepository {
     private val firestore = FirebaseFirestore.getInstance()
 
     val staticCategories = listOf(
-        Category("Electronics", "Electronics", "📷"),
-        Category("Sports", "Sports", "🚲"),
+        Category("Electronics", "Electronics", "📱"),
+        Category("Photography", "Photography", "📷"),
+        Category("Sports", "Sports", "⚽"),
+        Category("Fitness", "Fitness", "🏋️"),
         Category("Tools", "Tools", "🔧"),
         Category("Outdoors", "Outdoors", "⛺"),
+        Category("Gardening", "Gardening", "🌻"),
         Category("Vehicles", "Vehicles", "🚗"),
         Category("Music", "Music", "🎸"),
-        Category("Gaming", "Gaming", "🎮")
+        Category("Gaming", "Gaming", "🎮"),
+        Category("Books", "Books", "📖"),
+        Category("Appliances", "Appliances", "🍳"),
+        Category("Clothing", "Clothing", "👕"),
+        Category("Toys", "Toys", "🧸"),
+        Category("Party", "Party", "🎉"),
+        Category("Office", "Office", "💼")
     )
 
     private val dummyRentals = listOf(
@@ -39,7 +48,7 @@ class RentalRepository {
             id = "dummy1",
             name = "Sony A7III Camera",
             description = "Full-frame mirrorless camera with 28-70mm lens. Perfect for photography and 4K video.",
-            categoryId = "Electronics",
+            categoryId = "Photography",
             pricePerDay = 800.0,
             securityDeposit = 5000.0,
             distance = 1.2,

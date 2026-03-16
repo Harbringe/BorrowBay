@@ -1,23 +1,35 @@
 package com.example.borrowbay.features.profile.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.borrowbay.core.ui.components.PhoneInputField
 import com.example.borrowbay.core.ui.components.countries
 import com.example.borrowbay.features.profile.model.UserProfile
@@ -28,7 +40,9 @@ import com.example.borrowbay.ui.theme.*
 fun DetailsScreen(
     modifier: Modifier = Modifier,
     profile: UserProfile,
+    isLoading: Boolean = false,
     onSave: (UserProfile) -> Unit,
+    onImageUpload: (Uri) -> Unit,
     onBack: () -> Unit
 ) {
     var name by remember { mutableStateOf(profile.name) }
@@ -46,6 +60,12 @@ fun DetailsScreen(
     
     var email by remember { mutableStateOf(profile.email) }
     var address by remember { mutableStateOf(profile.address) }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { onImageUpload(it) }
+    }
 
     Scaffold(
         containerColor = BackgroundLight,
@@ -77,6 +97,75 @@ fun DetailsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Profile Picture Section
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(120.dp)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .clickable { launcher.launch("image/*") },
+                    color = MutedLight,
+                    border = BorderStroke(2.dp, Ocean.copy(alpha = 0.5f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (!profile.avatarUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = profile.avatarUri,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(60.dp),
+                                tint = MutedFgLight
+                            )
+                        }
+                        
+                        // Show loader on top of the image if it's uploading/loading
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                            }
+                        }
+                    }
+                }
+                
+                // Camera Icon Badge
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(36.dp)
+                        .clickable { launcher.launch("image/*") },
+                    shape = CircleShape,
+                    color = Ocean,
+                    border = BorderStroke(3.dp, Color.White),
+                    shadowElevation = 2.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = "Change Picture",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Text("Full Name", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.Black)
             OutlinedTextField(
@@ -162,7 +251,7 @@ fun DetailsScreen(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Ocean, contentColor = OnPrimary),
-                enabled = phone.length == selectedCountry.maxLength || phone.isBlank()
+                enabled = (phone.length == selectedCountry.maxLength || phone.isBlank()) && !isLoading
             ) {
                 Text("Update Profile", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }

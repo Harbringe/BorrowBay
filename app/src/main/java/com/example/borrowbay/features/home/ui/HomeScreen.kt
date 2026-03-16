@@ -128,6 +128,7 @@ fun HomeScreen(
         containerColor = BackgroundLight,
         bottomBar = {
             BottomNavigationBar(
+                selectedItem = BottomNavItem.Home,
                 onHomeClick = { },
                 onAddClick = onAddClick,
                 onProfileClick = onProfileClick,
@@ -259,17 +260,11 @@ fun HomeScreen(
     }
 }
 
-private fun simplifyAddress(address: String): String {
-    val parts = address.split(",")
-    return when {
-        parts.size >= 3 -> parts[parts.size - 3].trim()
-        parts.size == 2 -> parts[0].trim()
-        else -> address.trim()
-    }
-}
+enum class BottomNavItem { Home, Add, Profile }
 
 @Composable
 fun BottomNavigationBar(
+    selectedItem: BottomNavItem = BottomNavItem.Home,
     onHomeClick: () -> Unit = {},
     onAddClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
@@ -282,7 +277,7 @@ fun BottomNavigationBar(
         NavigationBarItem(
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
             label = { Text("Home") },
-            selected = true,
+            selected = selectedItem == BottomNavItem.Home,
             onClick = onHomeClick,
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Ocean,
@@ -295,7 +290,7 @@ fun BottomNavigationBar(
         
         // FAB-like Add Button in the middle
         NavigationBarItem(
-            selected = false,
+            selected = selectedItem == BottomNavItem.Add,
             onClick = onAddClick,
             icon = {
                 Surface(
@@ -315,7 +310,10 @@ fun BottomNavigationBar(
             label = { Text("Add") },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = Color.Transparent,
-                unselectedTextColor = Color.Gray
+                unselectedTextColor = Color.Gray,
+                selectedIconColor = Color.Transparent,
+                selectedTextColor = Ocean,
+                indicatorColor = Color.Transparent
             )
         )
 
@@ -333,13 +331,25 @@ fun BottomNavigationBar(
                 }
             },
             label = { Text("Profile") },
-            selected = false,
+            selected = selectedItem == BottomNavItem.Profile,
             onClick = onProfileClick,
             colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Ocean,
+                selectedTextColor = Ocean,
                 unselectedIconColor = Color.Gray,
-                unselectedTextColor = Color.Gray
+                unselectedTextColor = Color.Gray,
+                indicatorColor = Ocean.copy(alpha = 0.1f)
             )
         )
+    }
+}
+
+private fun simplifyAddress(address: String): String {
+    val parts = address.split(",")
+    return when {
+        parts.size >= 3 -> parts[parts.size - 3].trim()
+        parts.size == 2 -> parts[0].trim()
+        else -> address.trim()
     }
 }
 
@@ -926,16 +936,21 @@ fun RazorpaySetupDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 fun getCategoryIcon(name: String): ImageVector {
     return when (name.lowercase()) {
         "electronics" -> Icons.Default.Devices
-        "vehicles" -> Icons.Default.DirectionsCar
-        "tools" -> Icons.Default.Build
+        "photography" -> Icons.Default.CameraAlt
         "sports" -> Icons.Default.SportsBasketball
-        "camping" -> Icons.Default.Terrain
-        "party" -> Icons.Default.Celebration
+        "fitness" -> Icons.Default.FitnessCenter
+        "tools" -> Icons.Default.Build
+        "outdoors" -> Icons.Default.Terrain
+        "gardening" -> Icons.Default.LocalFlorist
+        "vehicles" -> Icons.Default.DirectionsCar
+        "music" -> Icons.Default.MusicNote
+        "gaming" -> Icons.Default.Gamepad
         "books" -> Icons.Default.Book
         "appliances" -> Icons.Default.Kitchen
-        "camera" -> Icons.Default.CameraAlt
-        "musical" -> Icons.Default.MusicNote
         "clothing" -> Icons.Default.Checkroom
+        "toys" -> Icons.Default.Toys
+        "party" -> Icons.Default.Celebration
+        "office" -> Icons.Default.Work
         else -> Icons.Default.Category
     }
 }

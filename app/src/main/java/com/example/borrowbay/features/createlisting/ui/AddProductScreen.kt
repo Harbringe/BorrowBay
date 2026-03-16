@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -59,7 +60,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.borrowbay.features.createlisting.viewmodel.CreateListingViewModel
 import com.example.borrowbay.features.createlisting.viewmodel.ListingUiState
-import com.example.borrowbay.core.ui.theme.*
+import com.example.borrowbay.ui.theme.*
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -509,7 +510,24 @@ fun DetailsStep(name: String, onNameChange: (String) -> Unit, selectedCategories
         Text("Select all that apply to your item", color = MutedFgLight, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
         Spacer(Modifier.height(12.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val categories = listOf("Electronics" to Icons.Default.CameraAlt, "Sports" to Icons.AutoMirrored.Filled.DirectionsBike, "Tools" to Icons.Default.Build, "Outdoors" to Icons.Default.Terrain, "Vehicles" to Icons.Default.DirectionsCar, "Music" to Icons.Default.MusicNote, "Gaming" to Icons.Default.Gamepad)
+            val categories = listOf(
+                "Electronics" to Icons.Default.Devices,
+                "Photography" to Icons.Default.CameraAlt,
+                "Sports" to Icons.Default.SportsBasketball,
+                "Fitness" to Icons.Default.FitnessCenter,
+                "Tools" to Icons.Default.Build,
+                "Outdoors" to Icons.Default.Terrain,
+                "Gardening" to Icons.Default.LocalFlorist,
+                "Vehicles" to Icons.Default.DirectionsCar,
+                "Music" to Icons.Default.MusicNote,
+                "Gaming" to Icons.Default.Gamepad,
+                "Books" to Icons.Default.Book,
+                "Appliances" to Icons.Default.Kitchen,
+                "Clothing" to Icons.Default.Checkroom,
+                "Toys" to Icons.Default.Toys,
+                "Party" to Icons.Default.Celebration,
+                "Office" to Icons.Default.Work
+            )
             categories.forEach { (cat, icon) ->
                 val selected = selectedCategories.contains(cat)
                 Surface(

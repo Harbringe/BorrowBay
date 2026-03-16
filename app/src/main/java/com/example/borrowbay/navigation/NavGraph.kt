@@ -106,6 +106,14 @@ fun NavGraph() {
         }
         composable("profile") {
             ProfileApp(
+                onHomeClick = {
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                },
+                onAddClick = {
+                    navController.navigate("add_product")
+                },
                 onBack = {
                     navController.popBackStack()
                 },

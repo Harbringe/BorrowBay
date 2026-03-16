@@ -4,17 +4,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.ListAlt
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +32,7 @@ import com.example.borrowbay.ui.theme.*
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     profile: UserProfile,
+    isLoading: Boolean = false,
     onBack: () -> Unit = {},
     onProfileClick: () -> Unit,
     onActiveListingsClick: () -> Unit,
@@ -44,21 +44,16 @@ fun ProfileScreen(
         containerColor = BackgroundLight,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Profile", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black) },
+                title = { Text("Profile", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black) },
                 navigationIcon = {
-                    Surface(
+                    IconButton(
                         onClick = onBack,
-                        shape = RoundedCornerShape(12.dp),
-                        color = SurfaceLight,
-                        shadowElevation = 1.dp,
-                        modifier = Modifier.padding(start = 16.dp).size(44.dp)
+                        modifier = Modifier.padding(start = 8.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp), tint = Color.Black)
-                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = SurfaceLight)
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = BackgroundLight)
             )
         }
     ) { padding ->
@@ -67,174 +62,185 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onProfileClick() },
-                shape = RoundedCornerShape(24.dp),
-                color = SurfaceLight,
-                shadowElevation = 2.dp,
-                border = BorderStroke(1.dp, BorderLight)
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            // Profile Header Card
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 40.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.5f))
                 ) {
-                    if (!profile.avatarUri.isNullOrBlank()) {
-                        AsyncImage(
-                            model = profile.avatarUri,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MutedLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Default Profile",
-                                modifier = Modifier.size(40.dp),
-                                tint = MutedFgLight
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.width(20.dp))
-                    
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .padding(top = 60.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = profile.name.ifBlank { "Add Name" },
+                            text = profile.name.ifBlank { "User" },
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
                             color = Color.Black
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = profile.email, color = MutedFgLight, fontSize = 14.sp)
+                        Text(
+                            text = profile.email,
+                            color = MutedFgLight,
+                            fontSize = 14.sp
+                        )
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        Button(
+                            onClick = onProfileClick,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Ocean.copy(alpha = 0.1f)),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            elevation = ButtonDefaults.buttonElevation(0.dp)
+                        ) {
+                            Text("Edit Profile", color = Ocean, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
                     }
+                }
 
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MutedFgLight
-                    )
+                // Profile Image overlapping
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .padding(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(MutedLight)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center).size(24.dp),
+                                color = Ocean,
+                                strokeWidth = 2.dp
+                            )
+                        } else if (!profile.avatarUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = profile.avatarUri,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Default Profile",
+                                modifier = Modifier.align(Alignment.Center).size(48.dp),
+                                tint = MutedFgLight
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // Menu Section
             Text(
-                text = "Account Settings",
-                fontSize = 16.sp,
+                text = "Activities",
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                modifier = Modifier.padding(start = 4.dp, bottom = 16.dp)
+                color = MutedFgLight,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
             )
 
             Surface(
                 shape = RoundedCornerShape(24.dp),
-                color = SurfaceLight,
-                shadowElevation = 1.dp,
-                border = BorderStroke(1.dp, BorderLight)
+                color = Color.White,
+                border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.5f))
             ) {
                 Column {
                     ProfileMenuItem(
                         title = "Active Listings",
+                        subtitle = "Manage items you've posted",
                         icon = Icons.Default.ListAlt,
                         onClick = onActiveListingsClick
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp), 
-                        thickness = 1.dp, 
-                        color = BorderLight
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = BorderLight.copy(alpha = 0.3f))
                     ProfileMenuItem(
                         title = "Rental History",
+                        subtitle = "View your past and current rentals",
                         icon = Icons.Default.History,
                         onClick = onRentalHistoryClick
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp), 
-                        thickness = 1.dp, 
-                        color = BorderLight
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp), color = BorderLight.copy(alpha = 0.3f))
                     ProfileMenuItem(
                         title = "Payment Setup",
+                        subtitle = "Configure how you receive payments",
                         icon = Icons.Default.Payments,
                         onClick = onPaymentSetupClick
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // Sign Out
             Button(
                 onClick = onSignOutClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Destructive.copy(alpha = 0.1f), 
-                    contentColor = Destructive
-                ),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 shape = RoundedCornerShape(16.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
                 border = BorderStroke(1.dp, Destructive.copy(alpha = 0.2f))
             ) {
-                Text(
-                    text = "Sign Out",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Logout, contentDescription = null, tint = Destructive, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(text = "Sign Out", fontWeight = FontWeight.Bold, color = Destructive)
+                }
             }
+            
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-fun ProfileMenuItem(title: String, icon: ImageVector, onClick: () -> Unit) {
+fun ProfileMenuItem(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(Ocean.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Ocean
-                )
+        Surface(
+            modifier = Modifier.size(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            color = Ocean.copy(alpha = 0.1f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = Ocean, modifier = Modifier.size(22.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
-            )
         }
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text(text = subtitle, fontSize = 12.sp, color = MutedFgLight)
+        }
+        
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            null,
             tint = MutedFgLight,
             modifier = Modifier.size(20.dp)
         )

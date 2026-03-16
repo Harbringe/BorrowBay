@@ -31,7 +31,7 @@ fun ActiveListingsScreen(
     viewModel: ProfileViewModel = viewModel()
 ) {
     val listings by viewModel.userListings.collectAsState()
-    val isLoading by viewModel.isLoadingListings.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     Scaffold(
         containerColor = BackgroundLight,
@@ -75,7 +75,7 @@ fun ActiveListingsScreen(
                     items(listings) { item ->
                         RentalCard(
                             item = item,
-                            showRentalStatus = false // Listings don't need countdown
+                            showRentalStatus = false
                         )
                     }
                 }
