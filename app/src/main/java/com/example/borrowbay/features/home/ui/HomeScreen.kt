@@ -49,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.borrowbay.core.util.FormattingUtils
 import com.example.borrowbay.data.model.Category
 import com.example.borrowbay.data.model.RentalItem
 import com.example.borrowbay.features.home.ui.components.RentalCard
@@ -354,6 +355,7 @@ fun HomeTopBar(address: String, onLocationClick: () -> Unit, modifier: Modifier 
         ) {
             Icon(Icons.Default.LocationOn, null, tint = Ocean, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
+            @Suppress("DEPRECATION")
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Location", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Ocean)
@@ -531,38 +533,84 @@ fun GlobalRentalItem(item: RentalItem, onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 8.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, BorderLight.copy(alpha = 0.5f))
     ) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
-                model = item.imageUrls.firstOrNull(),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f).height(100.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text(item.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(item.categoryId, color = Ocean, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(90.dp)) {
+                AsyncImage(
+                    model = item.imageUrls.firstOrNull(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                
+                if (!item.isAvailable) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Rented", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
+            }
+            
+            Spacer(Modifier.width(16.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = FormattingUtils.formatName(item.name, 25),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Text(
+                    text = FormattingUtils.formatName(item.categoryId, 20),
+                    color = Ocean,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocationOn, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.LocationOn, null, tint = MutedFgLight, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
-                        simplifyAddress(item.location),
-                        color = Color.Gray,
-                        fontSize = 12.sp,
+                        text = FormattingUtils.formatName(simplifyAddress(item.location), 25),
+                        color = MutedFgLight,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            Column(modifier = Modifier.height(100.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
-                Text("₹${item.pricePerDay.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Ocean)
-                Text("/day", fontSize = 11.sp, color = Color.Gray)
+            
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "₹${FormattingUtils.formatCurrency(item.pricePerDay)}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = Ocean
+                )
+                Text("/day", fontSize = 10.sp, color = MutedFgLight)
             }
         }
     }
